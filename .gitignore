@@ -1,0 +1,84 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+*.egg-info/
+*.egg
+*.dist-info/
+*.whl
+/build/
+/dist/
+/eggs/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+*.cover
+*.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.coveragerc
+htmlcov/
+.tox/
+.pytest_cache/
+
+# MyPy
+.mypy_cache/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# VS Code
+.vscode/
+
+# IDEs
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# macOS
+.DS_Store
+
+# Linux thumbnails
+.thumbnail
+
+# Thumbs.db (Windows)
+Thumbs.db
+
+# Logs
+*.log
+
+# Coverage reports and local testing artifacts
+htmlcov/
+coverage.xml
+
+# Editable install wheel cache
+pip-ephem-wheel-cache-*
+
+# PyCharm
+.idea/
+*.iml
+
+# Files created by built tools
+.sass-cache/
+
+# System files
+.*.swp

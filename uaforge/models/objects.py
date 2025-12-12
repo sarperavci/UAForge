@@ -39,6 +39,7 @@ class BrowserInfo:
     engine: EngineType
     
 
+
 @dataclass
 class UserAgentData:
     """
