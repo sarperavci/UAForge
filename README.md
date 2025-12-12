@@ -14,11 +14,11 @@ More importantly, it generates the **Client Hints (`Sec-CH-UA`)** that match the
 
 ### Why use this?
 
-*   **📊 Statistically Accurate:** candidates are weighted by real-world usage data (Data snapshot: **12.12.2025**).
-*   **🧠 Smart OS Mapping:** No more "Android Chrome on Windows." The library correlates browsers to their native operating systems.
-*   **📱 Real Hardware Models:** Injects real device models (Pixel 9, Samsung S29, etc.) for mobile user agents.
-*   **🔒 Client Hints Support:** Automatically generates `Sec-CH-UA`, `Sec-CH-UA-Platform`, `Sec-CH-UA-Mobile`, and GREASE tokens.
-*   **🎲 Deterministic:** Support for seeding ensures that the same "User" generates the same headers every time—perfect for session persistence.
+*   **Statistically Accurate:** Candidates are weighted by real-world global usage data (Snapshot: Dec 12, 2025).
+*   **Smart Correlations:** Enforces valid Browser-to-OS mappings to prevent unrealistic combinations.
+*   **Real Hardware:** Injects actual device models (e.g., Pixel 9, Samsung S29) for mobile agents.
+*   **Client Hints:** Automatically generates modern headers (Sec-CH-UA, Mobile, Platform) and GREASE tokens.
+*   **Deterministic:** Supports seeding to generate consistent, persistent identities for long-running sessions.
 
 ---
 
