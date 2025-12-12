@@ -64,7 +64,7 @@ class UserAgentData:
     ch_arch: str              # Sec-CH-UA-Arch
     ch_bitness: str           # Sec-CH-UA-Bitness
 
-    def get_headers(self, all: bool = True) -> Dict[str, str]:
+    def get_headers(self) -> Dict[str, str]:
         """Returns a dictionary of all relevant HTTP headers."""
         headers: Dict[str, str] = {"User-Agent": self.user_agent}
 
