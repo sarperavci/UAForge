@@ -78,5 +78,28 @@ class UserAgentData:
         if self.ch_full_version_list:
             headers["Sec-CH-UA-Full-Version-List"] = self.ch_full_version_list
         return headers
+    
+    def get_all_client_hints(self) -> Dict[str, str]:
+        """Returns only the Client Hints headers."""
+        headers: Dict[str, str] = {}
+
+        if self.ch_brands:
+            headers["Sec-CH-UA"] = self.ch_brands
+        if self.ch_mobile:
+            headers["Sec-CH-UA-Mobile"] = self.ch_mobile
+        if self.ch_platform:
+            headers["Sec-CH-UA-Platform"] = f'"{self.ch_platform}"'
+        if self.ch_full_version_list:
+            headers["Sec-CH-UA-Full-Version-List"] = self.ch_full_version_list
+        if self.ch_platform_version:
+            headers["Sec-CH-UA-Platform-Version"] = self.ch_platform_version
+        if self.ch_model:
+            headers["Sec-CH-UA-Model"] = f'"{self.ch_model}"'
+        if self.ch_arch:
+            headers["Sec-CH-UA-Arch"] = f'"{self.ch_arch}"'
+        if self.ch_bitness:
+            headers["Sec-CH-UA-Bitness"] = f'"{self.ch_bitness}"'
+
+        return headers
 
      
