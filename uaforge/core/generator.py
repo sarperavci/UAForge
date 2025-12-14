@@ -6,43 +6,108 @@ from ..models.enums import BrowserFamily, DeviceType, OSType, EngineType
 from ..models.objects import UserAgentData, BrowserInfo, OSInfo, HardwareInfo
 from .versioning import VersionExpander
 from .client_hints import ClientHintsGenerator
+from .alias_sampler import AliasSampler
 
 
 class UserAgentGenerator:
-    def __init__(self, seed: Optional[int] = None):
+    def __init__(self, seed: Optional[int] = None, pool_size: int = 1000):
         self.loader = DataLoader()
-        if seed is not None:
-            random.seed(seed)
+        self.rand = random.Random(seed)
+        self.candidate_sampler = AliasSampler(self.loader.weights, self.rand)
+        
+        self._version_pools = {}
+        for candidate in self.loader.candidates:
+            key = (candidate.family, candidate.version)
+            if key not in self._version_pools:
+                pool = []
+                for _ in range(pool_size):
+                    pool.append(VersionExpander.generate_full_version(candidate.family, candidate.version, rand=self.rand))
+                self._version_pools[key] = pool
+        
+        self._os_template_samplers = {}
+        for os_key, templates in self.loader.os_dist_raw.get("os_templates", {}).items():
+            if templates:
+                weights = [t.get('probability', 1.0) for t in templates]
+                self._os_template_samplers[os_key] = AliasSampler(weights, self.rand)
+        
+        self._device_model_pools = {}
+        for category in ["samsung", "google_pixel", "oppo_realme_generic", "xiaomi_ecosystem"]:
+            models = self.loader.get_device_models(category)
+            if models:
+                pool_size = min(300, len(models))
+                self._device_model_pools[category] = self.rand.choices(models, k=pool_size)
+        
+        self._os_samplers = []
+        self._os_choices = []
+        for candidate in self.loader.candidates:
+            if candidate.device_type == DeviceType.MOBILE:
+                if candidate.family == BrowserFamily.CHROME:
+                    key = "and_chr"
+                elif candidate.family == BrowserFamily.FIREFOX:
+                    key = "and_ff"
+                elif candidate.family == BrowserFamily.SAFARI:
+                    key = "ios_saf"
+                elif candidate.family == BrowserFamily.SAMSUNG:
+                    key = "samsung"
+                elif candidate.family == BrowserFamily.OPERA:
+                    key = "op_mob"
+                elif candidate.family == BrowserFamily.UC:
+                    key = "and_uc"
+                else:
+                    key = "android"
+                choices, weights = self.loader.get_os_choices_and_weights(key, "mobile_weights")
+            else:
+                key = candidate.family.value
+                choices, weights = self.loader.get_os_choices_and_weights(key, "desktop_weights")
+            
+            if choices and weights:
+                self._os_samplers.append(AliasSampler(weights, self.rand))
+                self._os_choices.append(choices)
+            else:
+                self._os_samplers.append(None)
+                self._os_choices.append(None)
+        
+        self._ua_builders = []
+        for c in self.loader.candidates:
+            fam = c.family
+            device = c.device_type
 
-    def _resolve_os(self, candidate: BrowserCandidate) -> Dict:
+            if fam == BrowserFamily.CHROME:
+                def make_os_token_and_build(os_token, fv, device=device):
+                    return (f"Mozilla/5.0 ({os_token}) AppleWebKit/537.36 (KHTML, like Gecko) "
+                            f"Chrome/{fv} {('Mobile ' if device == DeviceType.MOBILE else '')}Safari/537.36")
+            elif fam == BrowserFamily.EDGE:
+                def make_os_token_and_build(os_token, fv, device=device):
+                    return (f"Mozilla/5.0 ({os_token}) AppleWebKit/537.36 (KHTML, like Gecko) "
+                            f"Chrome/{fv} Safari/537.36 Edg/{fv}")
+            elif fam == BrowserFamily.FIREFOX:
+                def make_os_token_and_build(os_token, fv, device=device):
+                    return (f"Mozilla/5.0 ({os_token}; rv:{fv}) Gecko/20100101 Firefox/{fv}")
+            elif fam == BrowserFamily.SAFARI:
+                # safari will replace {version} within os token
+                sv = c.version
+                def make_os_token_and_build(os_token, fv, device=device, sv=sv):
+                    final_os_token = os_token.replace("{version}", sv.replace('.', '_'))
+                    webkit_version = "605.1.15"
+                    return (f"Mozilla/5.0 ({final_os_token}) AppleWebKit/{webkit_version} (KHTML, like Gecko) "
+                            f"Version/{sv} Mobile/15E148 Safari/{webkit_version}")
+            else:
+                def make_os_token_and_build(os_token, fv, device=device):
+                    return f"Mozilla/5.0 ({os_token}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{fv} Safari/537.36"
+
+            self._ua_builders.append(make_os_token_and_build)
+
+    def _resolve_os(self, candidate_idx: int) -> Dict:
         """
         Decides which OS to use based on the browser candidate.
         Uses os_distribution.json templates to determine strings and platform versions.
         """
-        weights_list = []
+        # Use precomputed OS sampler for this candidate
+        sampler = self._os_samplers[candidate_idx]
+        choices = self._os_choices[candidate_idx]
         
-        if candidate.device_type == DeviceType.MOBILE:
-            if candidate.family == BrowserFamily.CHROME:
-                key = "and_chr"
-            elif candidate.family == BrowserFamily.FIREFOX:
-                key = "and_ff"
-            elif candidate.family == BrowserFamily.SAFARI:
-                key = "ios_saf"
-            elif candidate.family == BrowserFamily.SAMSUNG:
-                key = "samsung"
-            elif candidate.family == BrowserFamily.OPERA:
-                key = "op_mob"
-            elif candidate.family == BrowserFamily.UC:
-                key = "and_uc"
-            else:
-                key = "android"
-            weights_list = self.loader.os_dist_raw.get("mobile_weights", {}).get(key, [])
-        else:
-            key = candidate.family.value
-            weights_list = self.loader.os_dist_raw.get("desktop_weights", {}).get(key, [])
-
         # Fallback
-        if not weights_list:
+        if not sampler or not choices:
             return {
                 "type": OSType.LINUX,
                 "platform_header": "Linux", 
@@ -50,9 +115,7 @@ class UserAgentGenerator:
                 "platform_version": "5.0.0"
             }
 
-        choices = weights_list
-        weights = [x['weight'] for x in choices]
-        selected_os_config = random.choices(choices, weights=weights, k=1)[0]
+        selected_os_config = choices[sampler.sample()]
 
         os_key = selected_os_config['os']
         platform_header = selected_os_config['platform']
@@ -62,8 +125,11 @@ class UserAgentGenerator:
         pv = "0.0.0"
 
         if templates:
-            t_weights = [t.get('probability', 1.0) for t in templates]
-            selected_template =  random.choices(templates, weights=t_weights, k=1)[0]
+            sampler = self._os_template_samplers.get(os_key)
+            if sampler:
+                selected_template = templates[sampler.sample()]
+            else:
+                selected_template = self.rand.choice(templates)
             
             ua_token = selected_template['ua_token']
             
@@ -71,9 +137,9 @@ class UserAgentGenerator:
                 pv = selected_template['platform_version']
             else:
                 if os_key == "ios":
-                    pv = f"{random.randint(16,17)}.{random.randint(0,5)}.0"
+                    pv = f"{self.rand.randint(16,17)}.{self.rand.randint(0,5)}.0"
                 elif os_key == "linux":
-                    pv = f"{random.randint(5,6)}.{random.randint(4,19)}.0"
+                    pv = f"{self.rand.randint(5,6)}.{self.rand.randint(4,19)}.0"
                 else:
                     pv = "1.0.0"
 
@@ -88,22 +154,21 @@ class UserAgentGenerator:
         if device_type == DeviceType.DESKTOP:
             return HardwareInfo(device_type=DeviceType.DESKTOP, model=None, cpu_arch="x86_64")
 
-        model_list = []
         if family == BrowserFamily.SAMSUNG:
-            model_list = self.loader.get_device_models("samsung")
+            model_list = self._device_model_pools.get("samsung", [])
         elif family == BrowserFamily.SAFARI:
             return HardwareInfo(device_type=DeviceType.MOBILE, model="iPhone", brand_header_value='"iPhone";v="16"')
-        elif family == BrowserFamily.CHROME and random.random() < 0.3:
-            model_list = self.loader.get_device_models("google_pixel")
+        elif family == BrowserFamily.CHROME and self.rand.random() < 0.3:
+            model_list = self._device_model_pools.get("google_pixel", [])
         else:
             cats = ["oppo_realme_generic", "xiaomi_ecosystem"]
-            cat = random.choice(cats)
-            model_list = self.loader.get_device_models(cat)
+            cat = self.rand.choice(cats)
+            model_list = self._device_model_pools.get(cat, [])
 
         if not model_list:
              return HardwareInfo(device_type=DeviceType.MOBILE, model="Generic Android", cpu_arch="arm64")
 
-        selected_model = random.choice(model_list)
+        selected_model = self.rand.choice(model_list)
 
         return HardwareInfo(
             device_type=DeviceType.MOBILE,
@@ -112,14 +177,14 @@ class UserAgentGenerator:
         )
 
     def generate(self) -> UserAgentData:
-        candidate = random.choices(self.loader.candidates, weights=self.loader.weights, k=1)[0]
-
-        full_version = VersionExpander.generate_full_version(candidate.family, candidate.version)
-        # flatten to major version for UA string
+        idx = self.candidate_sampler.sample()
+        candidate = self.loader.candidates[idx]
+        version_pool = self._version_pools.get((candidate.family, candidate.version))
+        full_version = self.rand.choice(version_pool) if version_pool else VersionExpander.generate_full_version(candidate.family, candidate.version, rand=self.rand)
         full_version_flattened = full_version.split('.', 1)[0] + '.0.0.0'
         
         # OS & Platform
-        os_data = self._resolve_os(candidate)
+        os_data = self._resolve_os(idx)
 
         # Hardware
         hw_info = self._resolve_hardware(candidate.device_type, candidate.family)
@@ -134,29 +199,12 @@ class UserAgentGenerator:
                 # We append the model: "Linux; Android 14; SM-S918B"
                 os_token = f"{os_token}; {hw_info.model}"
 
-        ua_string = ""
-        if candidate.family == BrowserFamily.CHROME:
-            ua_string = (f"Mozilla/5.0 ({os_token}) AppleWebKit/537.36 (KHTML, like Gecko) "
-                         f"Chrome/{full_version_flattened} {('Mobile ' if candidate.device_type == DeviceType.MOBILE else '')}Safari/537.36")
-        elif candidate.family == BrowserFamily.EDGE:
-            ua_string = (f"Mozilla/5.0 ({os_token}) AppleWebKit/537.36 (KHTML, like Gecko) "
-                         f"Chrome/{full_version_flattened} Safari/537.36 Edg/{full_version_flattened}")
-        elif candidate.family == BrowserFamily.FIREFOX:
-            rv_version = full_version 
-            ua_string = (f"Mozilla/5.0 ({os_token}; rv:{rv_version}) Gecko/20100101 Firefox/{full_version}")
-        elif candidate.family == BrowserFamily.SAFARI:
-            safari_version = candidate.version
-            webkit_version = "605.1.15"
-            # Simple template replacement for iOS version
-            final_os_token = os_token.replace("{version}", safari_version.replace(".", "_"))
-            ua_string = (f"Mozilla/5.0 ({final_os_token}) AppleWebKit/{webkit_version} (KHTML, like Gecko) "
-                         f"Version/{safari_version} Mobile/15E148 Safari/{webkit_version}")
-        else:
-             ua_string = f"Mozilla/5.0 ({os_token}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{full_version} Safari/537.36"
+        # Use precomputed builder for this candidate to assemble UA string quickly
+        ua_string = self._ua_builders[idx](os_token, full_version_flattened)
         
         # Handle Client Hints
-        brands = ClientHintsGenerator.generate_brands(candidate.family, candidate.version)
-        full_version_list = ClientHintsGenerator.generate_full_version_list(candidate.family, full_version)
+        brands = ClientHintsGenerator.generate_brands(candidate.family, candidate.version, rand=self.rand)
+        full_version_list = ClientHintsGenerator.generate_full_version_list(candidate.family, full_version, rand=self.rand)
 
         if not brands:
             # Firefox/Safari do not send these headers

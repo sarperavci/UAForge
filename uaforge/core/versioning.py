@@ -9,7 +9,7 @@ class VersionExpander:
     """
 
     @staticmethod
-    def generate_full_version(family: BrowserFamily, major_version: str) -> str:
+    def generate_full_version(family: BrowserFamily, major_version: str, rand=None) -> str:
         if "." in major_version:
             parts = major_version.split('.')
             if len(parts) > 1:
@@ -24,9 +24,12 @@ class VersionExpander:
             # Rough heuristic: Chrome build numbers increase over time.
             # v100 ~ build 4896. v130 ~ build 6723.
             # Slope approx: 60 build units per major version.
+            if rand is None:
+                rand = random
+
             estimated_build = 4000 + (major_int - 80) * 60
-            build = random.randint(estimated_build, estimated_build + 100)
-            patch = random.randint(0, 200)
+            build = rand.randint(estimated_build, estimated_build + 100)
+            patch = rand.randint(0, 200)
             return f"{major_version}.0.{build}.{patch}"
 
         elif family == BrowserFamily.FIREFOX:

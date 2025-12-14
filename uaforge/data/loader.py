@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from .mappings import MARKET_KEY_MAP
 from ..models.enums import BrowserFamily, DeviceType, OSType
 from ..exceptions import DataLoadError
+from ..core.alias_sampler import AliasSampler
 
 
 @dataclass
@@ -39,14 +40,22 @@ class DataLoader:
             self.os_dist_raw: Dict[str, Any] = {}
             self.device_models_raw: Dict[str, List[str]] = {}
             
-            # Optimized Lookup Tables
-            # candidates: The objects to pick from
-            # weights: The cumulative weights for random.choices
             self.candidates: List[BrowserCandidate] = []
             self.weights: List[float] = []
             
             self._load_data()
             self._process_market_share()
+            # Precompute OS weight caches for faster sampling
+            self._os_weight_cache = {}
+            self._os_alias_samplers = {}
+            for scope in ("mobile_weights", "desktop_weights"):
+                self._os_weight_cache[scope] = {}
+                self._os_alias_samplers[scope] = {}
+                for key, choices in self.os_dist_raw.get(scope, {}).items():
+                    weights = [x.get('weight', 0.0) for x in choices]
+                    self._os_weight_cache[scope][key] = (choices, weights)
+                    if weights:
+                        self._os_alias_samplers[scope][key] = weights  # store raw weights
             self._loaded = True
 
     def _load_data(self):
@@ -120,6 +129,14 @@ class DataLoader:
     def get_device_models(self, category_key: str) -> List[str]:
         """Returns list of device models (e.g. for 'samsung' or 'google_pixel')"""
         return self.device_models_raw.get(category_key, [])
+
+    def get_os_choices_and_weights(self, family_key: str, scope: str):
+        """Return (choices, weights) for a given family_key and scope ('mobile_weights'|'desktop_weights')."""
+        return self._os_weight_cache.get(scope, {}).get(family_key, ([], []))
+    
+    def get_os_weights_for_sampler(self, family_key: str, scope: str):
+        """Return raw weights for building an alias sampler."""
+        return self._os_alias_samplers.get(scope, {}).get(family_key, [])
 
     def get_os_template(self, os_key: str) -> List[Dict]:
         """Returns the template list for a specific OS (windows, linux)"""

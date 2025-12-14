@@ -64,6 +64,10 @@ class UserAgentData:
     ch_model: str             # Sec-CH-UA-Model
     ch_arch: str              # Sec-CH-UA-Arch
     ch_bitness: str           # Sec-CH-UA-Bitness
+    
+    __slots__ = ('user_agent', 'meta_os', 'meta_browser', 'meta_device',
+                 'ch_brands', 'ch_full_version_list', 'ch_mobile', 'ch_platform',
+                 'ch_platform_version', 'ch_model', 'ch_arch', 'ch_bitness')
 
     def get_headers(self) -> Dict[str, str]:
         """Returns a dictionary of all relevant HTTP headers."""
