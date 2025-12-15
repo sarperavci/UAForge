@@ -35,7 +35,7 @@ pip install git+https://github.com/sarperavci/uaforge.git
 The API is designed to be simple. You generate an "Identity" object, which contains everything you need for your requests.
 
 ```python
-from market_agent.core.generator import UserAgentGenerator
+from uaforge.core.generator import UserAgentGenerator
 
 # 1. Initialize the generator
 agent = UserAgentGenerator()
