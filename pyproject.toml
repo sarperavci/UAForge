@@ -9,6 +9,16 @@ description = "Enterprise-grade, deterministic User Agent and Client Hint genera
 requires-python = ">=3.9"
 dependencies = []
 
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"uaforge" = ["data/*.json", "data/*.txt"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["uaforge*"]
+
 [tool.mypy]
 strict = true
 ignore_missing_imports = true

@@ -1,0 +1,3 @@
+recursive-include uaforge/data *.json
+recursive-include uaforge/data *.txt
+include README.md
