@@ -1,24 +1,26 @@
 # UAForge
 
-**Enterprise-grade, deterministic User Agent & Client Hint generator based on real-world census data as of December 2025**
+**Enterprise-grade, deterministic User Agent & Client Hint generator based on real-world browser statistics**
 
-![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green)
-![Data Updated](https://img.shields.io/badge/market%20share-Dec%202025-orange)
+[![Python Version](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Auto-Updated](https://img.shields.io/badge/data-auto--updated%20weekly-orange)](https://caniuse.com/usage-table)
 
-Let's be honest: most "random user-agent" libraries are bad. They pick 10-year-old browser strings, mix incompatible operating systems or fail to provide the modern headers that security systems actually check.
+---
 
-**UAForge** is different. It doesn't just pick a random string. it simulates a user based on **statistical probability**. If Chrome 142 on Windows 10 has a 13% global market share, UAForge will generate that identity exactly 13% of the time.
+Most "random user-agent" libraries are broken. They generate outdated browser strings, mix incompatible OS combinations, or lack the modern headers that fingerprinting systems now check.
 
-More importantly, it generates the **Client Hints (`Sec-CH-UA`)** that match the legacy User-Agent string perfectly, allowing your scrapers or automation to pass deep fingerprinting checks.
+**UAForge takes a different approach.** Instead of picking random strings, it simulates real users based on **statistical probability**. If Chrome 143 on Android holds 40% global market share, UAForge generates that identity 40% of the time.
 
-### Why use this?
+It also generates matching **Client Hints (`Sec-CH-UA`)** headers automatically—allowing your automation to pass modern fingerprinting checks that go beyond the legacy User-Agent string.
 
-*   **Statistically Accurate:** Candidates are weighted by real-world global usage data (Snapshot: Dec 12, 2025).
-*   **Smart Correlations:** Enforces valid Browser-to-OS mappings to prevent unrealistic combinations.
-*   **Real Hardware:** Injects actual device models (e.g., Pixel 9, Samsung S29) for mobile agents.
-*   **Client Hints:** Automatically generates modern headers (Sec-CH-UA, Mobile, Platform) and GREASE tokens.
-*   **Deterministic:** Supports seeding to generate consistent, persistent identities for long-running sessions.
+### Key Features
+
+*   **Statistically Accurate** — Weighted by real-world global usage data, updated weekly from caniuse.com
+*   **Smart Correlations** — Enforces valid browser↔OS mappings (no Safari on Windows)
+*    **Real Hardware** — Injects actual device models (Pixel 9, Galaxy S24, etc.) for mobile agents
+*   **Client Hints** — Generates Sec-CH-UA, Sec-CH-UA-Mobile, Sec-CH-UA-Platform, and GREASE tokens
+*    **Deterministic** — Seed support for consistent, reproducible identities across sessions
 
 ---
 
@@ -26,6 +28,14 @@ More importantly, it generates the **Client Hints (`Sec-CH-UA`)** that match the
 
 ```bash
 pip install git+https://github.com/sarperavci/uaforge.git
+```
+
+Notes:
+- Requires Python 3.9 or newer.
+- The package includes the JSON data files (market share, OS distribution, device models). If you see a DataLoadError about missing data files after installation, try upgrading to the latest release:
+
+```bash
+pip install --upgrade git+https://github.com/sarperavci/uaforge.git
 ```
 
 ---
@@ -104,18 +114,42 @@ We don't guess. We utilize three distinct data layers:
 2.  **`os_distribution.json`**: The probability of an OS given a specific browser (e.g., Safari is 100% macOS/iOS, but Chrome is split between Windows, Mac, Linux, and Android).
 3.  **`device_models.json`**: A curated list of ~500 real-world mobile device fingerprints.
 
-### Version Expansion
-
-Market data usually gives us "Chrome 142". We automatically expand this into valid, realistic build numbers (e.g., `142.0.4567.12`) using heuristic slopes to ensure the sub-versions look chronologically accurate.
-
 ---
 
 ## Maintenance & Updates
 
-The browser ecosystem moves fast.
-*   **Current Data Snapshot:** December 12, 2025.
-*   **Next Scheduled Update:** Q1 2026.
+The browser ecosystem moves fast. Market share data is **automatically updated weekly** via GitHub Actions by parsing the latest data from [caniuse.com](https://caniuse.com/usage-table).
 
+You can also trigger a manual update by running:
+```bash
+python scripts/parse_caniuse.py
+```
+
+---
+
+## Current Market Share Distribution
+
+The table below shows the aggregated browser market share from the current dataset. Data is sourced from caniuse.com and updated automatically.
+
+| Browser | Market Share |
+|---------|-------------|
+| Chrome for Android | 55.04% |
+| Chrome (Desktop) | 22.23% |
+| iOS Safari | 10.28% |
+| Edge | 3.56% |
+| Samsung Internet | 1.59% |
+| Firefox | 1.50% |
+| Opera Mobile | 0.75% |
+| Safari (Desktop) | 0.68% |
+| Opera | 0.70% |
+| Android Browser | 0.50% |
+| UC Browser | 0.45% |
+| IE | 0.33% |
+| Firefox for Android | 0.28% |
+
+*Last updated: 12-12-2025*
+
+---
 
 ## License
 
