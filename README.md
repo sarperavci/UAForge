@@ -22,7 +22,6 @@ It also generates matching **Client Hints (`Sec-CH-UA`)** headers automatically�
 *   **Client Hints** — Generates Sec-CH-UA, Sec-CH-UA-Mobile, Sec-CH-UA-Platform, and GREASE tokens
 *    **Deterministic** — Seed support for consistent, reproducible identities across sessions
 
----
 
 ## Installation
 
@@ -37,8 +36,6 @@ Notes:
 ```bash
 pip install --upgrade git+https://github.com/sarperavci/uaforge.git
 ```
-
----
 
 ## Quick Start
 
@@ -76,8 +73,6 @@ print(headers)
 }
 ```
 
----
-
 ## Advanced Usage
 
 ### Deterministic Generation (Sessions)
@@ -102,8 +97,6 @@ if identity.meta_device == "mobile":
     print(f"Architecture: {identity.ch_arch}")   # e.g. "arm"
 ```
 
----
-
 ## How it works
 
 ### The Data Sources
@@ -114,8 +107,6 @@ We don't guess. We utilize three distinct data layers:
 2.  **`os_distribution.json`**: The probability of an OS given a specific browser (e.g., Safari is 100% macOS/iOS, but Chrome is split between Windows, Mac, Linux, and Android).
 3.  **`device_models.json`**: A curated list of ~500 real-world mobile device fingerprints.
 
----
-
 ## Maintenance & Updates
 
 The browser ecosystem moves fast. Market share data is **automatically updated weekly** via GitHub Actions by parsing the latest data from [caniuse.com](https://caniuse.com/usage-table).
@@ -124,8 +115,6 @@ You can also trigger a manual update by running:
 ```bash
 python scripts/parse_caniuse.py
 ```
-
----
 
 ## Current Market Share Distribution
 
@@ -148,8 +137,6 @@ The table below shows the aggregated browser market share from the current datas
 | Firefox for Android | 0.28% |
 
 *Last updated: 12-12-2025*
-
----
 
 ## License
 
