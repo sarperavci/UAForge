@@ -29,10 +29,13 @@ jobs:
     - name: Run market share updater
       run: python scripts/parse_caniuse.py
       
+    - name: Update README with new stats
+      run: python scripts/update_readme.py
+      
     - name: Check for changes
       id: changes
       run: |
-        if git diff --quiet uaforge/data/market_share.json; then
+        if git diff --quiet uaforge/data/market_share.json README.md; then
           echo "changed=false" >> $GITHUB_OUTPUT
         else
           echo "changed=true" >> $GITHUB_OUTPUT
@@ -43,6 +46,6 @@ jobs:
       run: |
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
-        git add uaforge/data/market_share.json
+        git add uaforge/data/market_share.json README.md
         git commit -m "chore: update market share data"
         git push
