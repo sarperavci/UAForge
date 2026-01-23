@@ -1,6 +1,9 @@
 import random
-from typing import List, Tuple
+from typing import List, Tuple, Optional, TYPE_CHECKING
 from ..models.enums import BrowserFamily
+
+if TYPE_CHECKING:
+    from ..data.loader import DataLoader
 
 
 class ClientHintsGenerator:
@@ -48,12 +51,6 @@ class ClientHintsGenerator:
         elif family == BrowserFamily.OPERA:
             brands.append(("Chromium", version))
             brands.append(("Opera", version))
-        elif family == BrowserFamily.SAMSUNG:
-            brands.append(("Chromium", version))
-            brands.append(("Samsung Internet", version))
-        elif family == BrowserFamily.UC:
-            brands.append(("Chromium", version))
-            brands.append(("UC Browser", version))
         else:
             brands.append(("Chromium", version))
         
@@ -67,65 +64,96 @@ class ClientHintsGenerator:
         """
         Constructs the Sec-CH-UA header value (Major versions only).
         Returns EMPTY STRING for Safari/Firefox.
+
+        For Edge and Opera, uses appropriate Chromium major version:
+        - Edge: Same major version as Edge
+        - Opera: Opera major version + 16
         """
         if family in (BrowserFamily.FIREFOX, BrowserFamily.SAFARI):
             return ""
 
-        # Fast path: use cached base brand names and format with provided version.
-        key = (family, 'major')
-        base = cls._brand_base_cache.get(key)
-        if base is None:
-            # Build deterministic base list (without grease punctuation variation) and cache it.
-            base = []
-            base.append(("Not A Brand", "99"))
-            if family == BrowserFamily.CHROME:
-                base.append(("Chromium", None))
-                base.append(("Google Chrome", None))
-            elif family == BrowserFamily.EDGE:
-                base.append(("Chromium", None))
-                base.append(("Microsoft Edge", None))
-            elif family == BrowserFamily.OPERA:
-                base.append(("Chromium", None))
-                base.append(("Opera", None))
-            elif family == BrowserFamily.SAMSUNG:
-                base.append(("Chromium", None))
-                base.append(("Samsung Internet", None))
-            elif family == BrowserFamily.UC:
-                base.append(("Chromium", None))
-                base.append(("UC Browser", None))
-            else:
-                base.append(("Chromium", None))
+        # Get Chromium major version for Edge and Opera
+        chromium_major = None
+        if family == BrowserFamily.EDGE:
+            chromium_major = major_version  # Edge uses same major as Chromium
+        elif family == BrowserFamily.OPERA:
+            try:
+                chromium_major = str(int(major_version) + 16)
+            except ValueError:
+                chromium_major = major_version
 
-            cls._brand_base_cache[key] = base
-
-        # Format with the major version
+        # Build the brand list
         parts = []
-        for name, v in base:
-            version = v if v is not None else major_version
-            parts.append(f'"{name}";v="{version}"')
+        parts.append('"Not A Brand";v="99"')
+
+        if family == BrowserFamily.CHROME:
+            parts.append(f'"Chromium";v="{major_version}"')
+            parts.append(f'"Google Chrome";v="{major_version}"')
+        elif family == BrowserFamily.EDGE:
+            parts.append(f'"Chromium";v="{chromium_major}"')
+            parts.append(f'"Microsoft Edge";v="{major_version}"')
+        elif family == BrowserFamily.OPERA:
+            parts.append(f'"Chromium";v="{chromium_major}"')
+            parts.append(f'"Opera";v="{major_version}"')
+        else:
+            parts.append(f'"Chromium";v="{major_version}"')
+
         return ", ".join(parts)
 
     @classmethod
-    def generate_full_version_list(cls, family: BrowserFamily, full_version: str, rand=None) -> str:
+    def generate_full_version_list(cls, family: BrowserFamily, full_version: str, rand=None, loader: Optional['DataLoader'] = None) -> str:
         """
         Constructs the Sec-CH-UA-Full-Version-List header.
         Returns EMPTY STRING for Safari/Firefox.
+
+        For Edge and Opera, uses appropriate Chromium version:
+        - Edge: Same major version as Edge
+        - Opera: Opera major version + 16
         """
         if family in (BrowserFamily.FIREFOX, BrowserFamily.SAFARI):
             return ""
 
-        # Use the same base cached brand names as major but format with full_version
-        key = (family, 'major')
-        base = cls._brand_base_cache.get(key)
-        if base is None:
-            # fall back to generate_brands which will populate cache
-            cls.generate_brands(family, full_version)
-            base = cls._brand_base_cache.get(key)
+        # Get Chromium version for Edge and Opera
+        chromium_version = None
+        if loader:
+            if family == BrowserFamily.EDGE:
+                try:
+                    major = full_version.split('.')[0]
+                    chromium_version = loader.get_chromium_version_for_edge(major)
+                except Exception:
+                    pass
+            elif family == BrowserFamily.OPERA:
+                try:
+                    major = full_version.split('.')[0]
+                    chromium_version = loader.get_chromium_version_for_opera(major)
+                except Exception:
+                    pass
 
+        # Build the version list
         parts = []
-        for name, v in base:
-            version = v if v is not None else full_version
-            parts.append(f'"{name}";v="{version}"')
+        parts.append('"Not A Brand";v="99.0.0.0"')
+
+        if family == BrowserFamily.CHROME:
+            parts.append(f'"Chromium";v="{full_version}"')
+            parts.append(f'"Google Chrome";v="{full_version}"')
+        elif family == BrowserFamily.EDGE:
+            if chromium_version:
+                parts.append(f'"Chromium";v="{chromium_version}"')
+            else:
+                parts.append(f'"Chromium";v="{full_version}"')
+            parts.append(f'"Microsoft Edge";v="{full_version}"')
+        elif family == BrowserFamily.OPERA:
+            if chromium_version:
+                parts.append(f'"Chromium";v="{chromium_version}"')
+            else:
+                # Fallback: calculate Chromium version
+                major = int(full_version.split('.')[0])
+                chromium_major = major + 16
+                parts.append(f'"Chromium";v="{chromium_major}.0.0.0"')
+            parts.append(f'"Opera";v="{full_version}"')
+        else:
+            parts.append(f'"Chromium";v="{full_version}"')
+
         return ", ".join(parts)
 
     @staticmethod
