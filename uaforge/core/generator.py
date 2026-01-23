@@ -266,6 +266,7 @@ class UserAgentGenerator:
             rand=self.rand,
             loader=self.loader
         )
+        full_version_hint = ClientHintsGenerator.generate_full_version(candidate.family, full_version)
 
         if not brands:
             # Firefox/Safari do not send these headers
@@ -276,6 +277,10 @@ class UserAgentGenerator:
             ch_arch = ""
             ch_bitness = ""
             ch_full = ""
+            ch_full_version = ""
+            ch_form_factors = ""
+            ch_wow64 = ""
+            ch_prefers_color_scheme = ""
         else:
             ch_mobile = ClientHintsGenerator.get_mobile_token(candidate.device_type == DeviceType.MOBILE)
             ch_platform = os_data['platform_header']
@@ -284,6 +289,10 @@ class UserAgentGenerator:
             ch_arch = "x86" if "x86" in hw_info.cpu_arch else "arm"
             ch_bitness = "64"
             ch_full = full_version_list
+            ch_full_version = full_version_hint
+            ch_form_factors = ClientHintsGenerator.generate_form_factors(candidate.device_type, rand=self.rand)
+            ch_wow64 = ClientHintsGenerator.get_wow64_token(False)  # Assuming not WoW64 by default
+            ch_prefers_color_scheme = ClientHintsGenerator.get_prefers_color_scheme(rand=self.rand)
 
         return UserAgentData(
             user_agent=ua_string,
@@ -295,6 +304,10 @@ class UserAgentGenerator:
             ch_model=ch_model,
             ch_arch=ch_arch,
             ch_bitness=ch_bitness,
+            ch_full_version=ch_full_version,
+            ch_form_factors=ch_form_factors,
+            ch_wow64=ch_wow64,
+            ch_prefers_color_scheme=ch_prefers_color_scheme,
             meta_os=os_data['type'],
             meta_browser=candidate.family,
             meta_device=candidate.device_type
