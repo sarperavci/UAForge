@@ -99,7 +99,7 @@ def update_chrome_versions():
         os_versions = set(existing[os_name].get("all_versions", []))
 
         for platform in platform_list:
-            url = f"https://versionhistory.googleapis.com/v1/chrome/platforms/{platform}/channels/stable/versions?pageSize=10"
+            url = f"https://versionhistory.googleapis.com/v1/chrome/platforms/{platform}/channels/stable/versions?pageSize=1000"
 
             try:
                 with urllib.request.urlopen(url) as response:

@@ -82,15 +82,15 @@ def main():
     # Create result structure (same for all platforms)
     result = {
         "windows": {
-            "all_versions": versions[:100],  # Keep last 100 versions
+            "all_versions": versions,  # Keep last 100 versions
             "by_major_version": by_major
         },
         "macos": {
-            "all_versions": versions[:100],
+            "all_versions": versions,
             "by_major_version": by_major
         },
         "linux": {
-            "all_versions": versions[:100],
+            "all_versions": versions,
             "by_major_version": by_major
         }
     }
