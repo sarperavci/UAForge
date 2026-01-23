@@ -21,7 +21,12 @@ class UserAgentGenerator:
             if key not in self._version_pools:
                 pool = []
                 for _ in range(pool_size):
-                    pool.append(VersionExpander.generate_full_version(candidate.family, candidate.version, rand=self.rand))
+                    pool.append(VersionExpander.generate_full_version(
+                        candidate.family,
+                        candidate.version,
+                        rand=self.rand,
+                        loader=self.loader
+                    ))
                 self._version_pools[key] = pool
         
         self._os_template_samplers = {}
@@ -47,12 +52,8 @@ class UserAgentGenerator:
                     key = "and_ff"
                 elif candidate.family == BrowserFamily.SAFARI:
                     key = "ios_saf"
-                elif candidate.family == BrowserFamily.SAMSUNG:
-                    key = "samsung"
                 elif candidate.family == BrowserFamily.OPERA:
                     key = "op_mob"
-                elif candidate.family == BrowserFamily.UC:
-                    key = "and_uc"
                 else:
                     key = "android"
                 choices, weights = self.loader.get_os_choices_and_weights(key, "mobile_weights")
@@ -67,35 +68,68 @@ class UserAgentGenerator:
                 self._os_samplers.append(None)
                 self._os_choices.append(None)
         
-        self._ua_builders = []
+        # Store browser metadata for UA building
+        self._ua_metadata = []
         for c in self.loader.candidates:
-            fam = c.family
-            device = c.device_type
+            self._ua_metadata.append({
+                'family': c.family,
+                'device': c.device_type,
+                'version': c.version  # Safari marketing version
+            })
 
-            if fam == BrowserFamily.CHROME:
-                def make_os_token_and_build(os_token, fv, device=device):
-                    return (f"Mozilla/5.0 ({os_token}) AppleWebKit/537.36 (KHTML, like Gecko) "
-                            f"Chrome/{fv} {('Mobile ' if device == DeviceType.MOBILE else '')}Safari/537.36")
-            elif fam == BrowserFamily.EDGE:
-                def make_os_token_and_build(os_token, fv, device=device):
-                    return (f"Mozilla/5.0 ({os_token}) AppleWebKit/537.36 (KHTML, like Gecko) "
-                            f"Chrome/{fv} Safari/537.36 Edg/{fv}")
-            elif fam == BrowserFamily.FIREFOX:
-                def make_os_token_and_build(os_token, fv, device=device):
-                    return (f"Mozilla/5.0 ({os_token}; rv:{fv}) Gecko/20100101 Firefox/{fv}")
-            elif fam == BrowserFamily.SAFARI:
-                # safari will replace {version} within os token
-                sv = c.version
-                def make_os_token_and_build(os_token, fv, device=device, sv=sv):
-                    final_os_token = os_token.replace("{version}", sv.replace('.', '_'))
-                    webkit_version = "605.1.15"
-                    return (f"Mozilla/5.0 ({final_os_token}) AppleWebKit/{webkit_version} (KHTML, like Gecko) "
-                            f"Version/{sv} Mobile/15E148 Safari/{webkit_version}")
-            else:
-                def make_os_token_and_build(os_token, fv, device=device):
-                    return f"Mozilla/5.0 ({os_token}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{fv} Safari/537.36"
+    @staticmethod
+    def _build_ua_string(family: BrowserFamily, device: DeviceType, os_token: str, full_version: str, marketing_version: str = None) -> str:
+        """
+        Build user agent string based on browser family and parameters.
 
-            self._ua_builders.append(make_os_token_and_build)
+        Args:
+            family: Browser family
+            device: Device type
+            os_token: OS token string
+            full_version: Full version string
+            marketing_version: Marketing version for Safari
+
+        Returns:
+            Complete user agent string
+        """
+        if family == BrowserFamily.CHROME:
+            mobile = 'Mobile ' if device == DeviceType.MOBILE else ''
+            return (f"Mozilla/5.0 ({os_token}) AppleWebKit/537.36 (KHTML, like Gecko) "
+                    f"Chrome/{full_version} {mobile}Safari/537.36")
+
+        elif family == BrowserFamily.EDGE:
+            return (f"Mozilla/5.0 ({os_token}) AppleWebKit/537.36 (KHTML, like Gecko) "
+                    f"Chrome/{full_version} Safari/537.36 Edg/{full_version}")
+
+        elif family == BrowserFamily.FIREFOX:
+            return f"Mozilla/5.0 ({os_token}; rv:{full_version}) Gecko/20100101 Firefox/{full_version}"
+
+        elif family == BrowserFamily.SAFARI:
+            final_os_token = os_token.replace("{version}", marketing_version.replace('.', '_'))
+            webkit_version = "605.1.15"
+            return (f"Mozilla/5.0 ({final_os_token}) AppleWebKit/{webkit_version} (KHTML, like Gecko) "
+                    f"Version/{marketing_version} Mobile/15E148 Safari/{webkit_version}")
+
+        else:  # Opera or other Chromium-based
+            return f"Mozilla/5.0 ({os_token}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{full_version} Safari/537.36"
+
+    def _map_os_to_platform(self, os_type: OSType) -> str:
+        """
+        Map OSType enum to platform string for version lookup.
+
+        Args:
+            os_type: Operating system type enum
+
+        Returns:
+            Platform string ("windows", "macos", or "linux")
+        """
+        if os_type == OSType.WINDOWS:
+            return "windows"
+        elif os_type in (OSType.MACOS, OSType.IOS):
+            return "macos"
+        else:
+            # Default to linux for Android and other OS types
+            return "linux"
 
     def _resolve_os(self, candidate_idx: int) -> Dict:
         """
@@ -154,14 +188,13 @@ class UserAgentGenerator:
         if device_type == DeviceType.DESKTOP:
             return HardwareInfo(device_type=DeviceType.DESKTOP, model=None, cpu_arch="x86_64")
 
-        if family == BrowserFamily.SAMSUNG:
-            model_list = self._device_model_pools.get("samsung", [])
-        elif family == BrowserFamily.SAFARI:
+        if family == BrowserFamily.SAFARI:
             return HardwareInfo(device_type=DeviceType.MOBILE, model="iPhone", brand_header_value='"iPhone";v="16"')
         elif family == BrowserFamily.CHROME and self.rand.random() < 0.3:
             model_list = self._device_model_pools.get("google_pixel", [])
         else:
-            cats = ["oppo_realme_generic", "xiaomi_ecosystem"]
+            # For other mobile browsers (Chrome, Firefox, Opera, Edge), use generic Android devices
+            cats = ["samsung", "oppo_realme_generic", "xiaomi_ecosystem", "google_pixel"]
             cat = self.rand.choice(cats)
             model_list = self._device_model_pools.get(cat, [])
 
@@ -179,19 +212,35 @@ class UserAgentGenerator:
     def generate(self) -> UserAgentData:
         idx = self.candidate_sampler.sample()
         candidate = self.loader.candidates[idx]
-        version_pool = self._version_pools.get((candidate.family, candidate.version))
-        full_version = self.rand.choice(version_pool) if version_pool else VersionExpander.generate_full_version(candidate.family, candidate.version, rand=self.rand)
-        full_version_flattened = full_version.split('.', 1)[0] + '.0.0.0'
-        
-        # OS & Platform
+
+        # OS & Platform - resolve first so we can use it for version generation
         os_data = self._resolve_os(idx)
+
+        # Map OSType to platform string for Chrome version lookup
+        platform = self._map_os_to_platform(os_data['type'])
+
+        # Generate version with platform information
+        version_pool = self._version_pools.get((candidate.family, candidate.version))
+        if version_pool and candidate.family != BrowserFamily.CHROME:
+            # Use pre-computed pool for non-Chrome browsers
+            full_version = self.rand.choice(version_pool)
+        else:
+            # Generate version on-the-fly with platform info for Chrome
+            full_version = VersionExpander.generate_full_version(
+                candidate.family,
+                candidate.version,
+                rand=self.rand,
+                platform=platform,
+                loader=self.loader
+            )
+        full_version_flattened = full_version.split('.', 1)[0] + '.0.0.0'
 
         # Hardware
         hw_info = self._resolve_hardware(candidate.device_type, candidate.family)
 
         # Construct UA String
         os_token = os_data['ua_token']
-        
+
         # Android Model Injection
         if candidate.device_type == DeviceType.MOBILE and os_data['type'] == OSType.ANDROID:
             if hw_info.model:
@@ -199,12 +248,24 @@ class UserAgentGenerator:
                 # We append the model: "Linux; Android 14; SM-S918B"
                 os_token = f"{os_token}; {hw_info.model}"
 
-        # Use precomputed builder for this candidate to assemble UA string quickly
-        ua_string = self._ua_builders[idx](os_token, full_version_flattened)
+        # Build UA string using metadata
+        metadata = self._ua_metadata[idx]
+        ua_string = self._build_ua_string(
+            metadata['family'],
+            metadata['device'],
+            os_token,
+            full_version_flattened,
+            metadata['version']  # Safari marketing version
+        )
         
         # Handle Client Hints
         brands = ClientHintsGenerator.generate_brands(candidate.family, candidate.version, rand=self.rand)
-        full_version_list = ClientHintsGenerator.generate_full_version_list(candidate.family, full_version, rand=self.rand)
+        full_version_list = ClientHintsGenerator.generate_full_version_list(
+            candidate.family,
+            full_version,
+            rand=self.rand,
+            loader=self.loader
+        )
 
         if not brands:
             # Firefox/Safari do not send these headers

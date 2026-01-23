@@ -39,6 +39,10 @@ class DataLoader:
             self.market_raw: Dict[str, Any] = {}
             self.os_dist_raw: Dict[str, Any] = {}
             self.device_models_raw: Dict[str, List[str]] = {}
+            self.chrome_versions_raw: Dict[str, Any] = {}
+            self.edge_versions_raw: Dict[str, Any] = {}
+            self.opera_versions_raw: Dict[str, Any] = {}
+            self.chromium_versions_raw: Dict[str, Any] = {}
             
             self.candidates: List[BrowserCandidate] = []
             self.weights: List[float] = []
@@ -67,6 +71,32 @@ class DataLoader:
                 self.os_dist_raw = json.load(f)
             with open(self.base_path / "device_models.json", "r", encoding="utf-8") as f:
                 self.device_models_raw = json.load(f)
+
+            # Load version data files (with graceful fallback)
+            try:
+                with open(self.base_path / "chrome_versions.json", "r", encoding="utf-8") as f:
+                    self.chrome_versions_raw = json.load(f)
+            except FileNotFoundError:
+                self.chrome_versions_raw = {}
+
+            try:
+                with open(self.base_path / "edge_versions.json", "r", encoding="utf-8") as f:
+                    self.edge_versions_raw = json.load(f)
+            except FileNotFoundError:
+                self.edge_versions_raw = {}
+
+            try:
+                with open(self.base_path / "opera_versions.json", "r", encoding="utf-8") as f:
+                    self.opera_versions_raw = json.load(f)
+            except FileNotFoundError:
+                self.opera_versions_raw = {}
+
+            try:
+                with open(self.base_path / "chromium_versions.json", "r", encoding="utf-8") as f:
+                    self.chromium_versions_raw = json.load(f)
+            except FileNotFoundError:
+                self.chromium_versions_raw = {}
+
         except FileNotFoundError as e:
             raise DataLoadError(f"Critical data file missing: {e.filename}")
         except json.JSONDecodeError as e:
@@ -141,3 +171,87 @@ class DataLoader:
     def get_os_template(self, os_key: str) -> List[Dict]:
         """Returns the template list for a specific OS (windows, linux)"""
         return self.os_dist_raw.get("os_templates", {}).get(os_key, [])
+
+    def get_chrome_versions(self, major_version: str, platform: str = "windows") -> List[str]:
+        """
+        Returns real Chrome versions for a given major version and platform.
+
+        Args:
+            major_version: Major version number (e.g., "142")
+            platform: Platform name ("windows", "macos", "linux")
+
+        Returns:
+            List of full version strings for the given major version
+        """
+        platform_data = self.chrome_versions_raw.get(platform, {})
+        by_major = platform_data.get("by_major_version", {})
+        return by_major.get(major_version, [])
+
+    def get_edge_versions(self, major_version: str, platform: str = "windows") -> List[str]:
+        """
+        Returns real Edge versions for a given major version and platform.
+
+        Args:
+            major_version: Major version number (e.g., "144")
+            platform: Platform name ("windows", "macos", "linux")
+
+        Returns:
+            List of full version strings for the given major version
+        """
+        platform_data = self.edge_versions_raw.get(platform, {})
+        by_major = platform_data.get("by_major_version", {})
+        return by_major.get(major_version, [])
+
+    def get_opera_versions(self, major_version: str, platform: str = "windows") -> List[str]:
+        """
+        Returns real Opera versions for a given major version and platform.
+
+        Args:
+            major_version: Major version number (e.g., "122")
+            platform: Platform name ("windows", "macos", "linux")
+
+        Returns:
+            List of full version strings for the given major version
+        """
+        platform_data = self.opera_versions_raw.get(platform, {})
+        by_major = platform_data.get("by_major_version", {})
+        return by_major.get(major_version, [])
+
+    def get_chromium_version_for_opera(self, opera_major: str) -> Optional[str]:
+        """
+        Get corresponding Chromium version for an Opera major version.
+        Opera major version + 16 = Chromium major version.
+
+        Args:
+            opera_major: Opera major version (e.g., "122")
+
+        Returns:
+            Chromium version string or None
+        """
+        try:
+            chromium_major = str(int(opera_major) + 16)
+            chromium_versions = self.chromium_versions_raw.get("by_major_version", {}).get(chromium_major, [])
+            if chromium_versions:
+                return chromium_versions[0]  # Return first stable version
+            return None
+        except (ValueError, KeyError):
+            return None
+
+    def get_chromium_version_for_edge(self, edge_major: str) -> Optional[str]:
+        """
+        Get corresponding Chromium version for an Edge major version.
+        Edge and Chromium share the same major version number.
+
+        Args:
+            edge_major: Edge major version (e.g., "144")
+
+        Returns:
+            Chromium version string or None
+        """
+        try:
+            chromium_versions = self.chromium_versions_raw.get("by_major_version", {}).get(edge_major, [])
+            if chromium_versions:
+                return chromium_versions[0]  # Return first stable version
+            return None
+        except KeyError:
+            return None
