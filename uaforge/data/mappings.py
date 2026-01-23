@@ -8,13 +8,12 @@ from ..models.enums import BrowserFamily, DeviceType, OSType
 MARKET_KEY_MAP: Dict[str, Tuple[BrowserFamily, DeviceType, OSType]] = {
     "and_chr": (BrowserFamily.CHROME, DeviceType.MOBILE, OSType.ANDROID),
     "and_ff":  (BrowserFamily.FIREFOX, DeviceType.MOBILE, OSType.ANDROID),
-    "and_uc":  (BrowserFamily.UC, DeviceType.MOBILE, OSType.ANDROID),
     "android": (BrowserFamily.CHROME, DeviceType.MOBILE, OSType.ANDROID), # Generic Android often implies WebKit/Chrome
     "chrome":  (BrowserFamily.CHROME, DeviceType.DESKTOP, OSType.UNKNOWN),
     "edge":    (BrowserFamily.EDGE, DeviceType.DESKTOP, OSType.UNKNOWN),
     "firefox": (BrowserFamily.FIREFOX, DeviceType.DESKTOP, OSType.UNKNOWN),
-    "ie":      (BrowserFamily.IE, DeviceType.DESKTOP, OSType.WINDOWS),     # IE is always Windows
     "ios_saf": (BrowserFamily.SAFARI, DeviceType.MOBILE, OSType.IOS),
     "op_mob":  (BrowserFamily.OPERA, DeviceType.MOBILE, OSType.ANDROID),
-    "samsung": (BrowserFamily.SAMSUNG, DeviceType.MOBILE, OSType.ANDROID),
+    "opera":   (BrowserFamily.OPERA, DeviceType.DESKTOP, OSType.UNKNOWN),
+    "safari":  (BrowserFamily.SAFARI, DeviceType.DESKTOP, OSType.MACOS),
 }

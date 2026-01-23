@@ -26,9 +26,6 @@ class BrowserFamily(str, Enum):
     SAFARI = "safari"
     EDGE = "edge"
     OPERA = "opera"
-    IE = "ie"
-    SAMSUNG = "samsung_browser"
-    UC = "uc_browser"
     UNKNOWN = "unknown"
 
 
