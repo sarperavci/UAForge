@@ -233,8 +233,17 @@ class UserAgentGenerator:
                 platform=platform,
                 loader=self.loader
             )
-        full_version_flattened = full_version.split('.', 1)[0] + '.0.0.0'
-
+        major_version = full_version.split('.', 1)[0]
+        full_version_flattened = major_version + '.0.0.0'
+        
+        # get internal chromium version
+        chromium_version = ClientHintsGenerator.get_major_chromium_full_version(
+            candidate.family,
+            full_version,
+            rand=self.rand,
+            loader=self.loader
+        )
+        
         # Hardware
         hw_info = self._resolve_hardware(candidate.device_type, candidate.family)
 
@@ -243,9 +252,11 @@ class UserAgentGenerator:
 
         # Android Model Injection
         if candidate.device_type == DeviceType.MOBILE and os_data['type'] == OSType.ANDROID:
-            if hw_info.model:
-                # ua_token from JSON is "Linux; Android 14"
-                # We append the model: "Linux; Android 14; SM-S918B"
+            if hw_info.model and chromium_version >= 110:
+                #"Linux; Android 14; K"
+                os_token = f"{os_token}; K" # https://www.chromium.org/updates/ua-reduction
+            elif hw_info.model:
+                #"Linux; Android 14; SM-S918B"
                 os_token = f"{os_token}; {hw_info.model}"
 
         # Build UA string using metadata
@@ -267,7 +278,6 @@ class UserAgentGenerator:
             loader=self.loader
         )
         full_version_hint = ClientHintsGenerator.generate_full_version(candidate.family, full_version)
-
         if not brands:
             # Firefox/Safari do not send these headers
             ch_mobile = ""
