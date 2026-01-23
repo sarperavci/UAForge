@@ -101,6 +101,29 @@ class ClientHintsGenerator:
         return ", ".join(parts)
 
     @classmethod
+    def get_major_chromium_full_version(cls, family: BrowserFamily, full_version: str, rand=None, loader: Optional['DataLoader'] = None) -> Optional[int]:
+        chromium_version = None
+        if loader:
+            if family == BrowserFamily.EDGE:
+                try:
+                    major = full_version.split('.')[0]
+                    chromium_version = loader.get_chromium_version_for_edge(major)
+                except Exception:
+                    pass
+            elif family == BrowserFamily.OPERA:
+                try:
+                    major = full_version.split('.')[0]
+                    chromium_version = loader.get_chromium_version_for_opera(major)
+                except Exception:
+                    pass
+        if chromium_version:
+            return int(chromium_version.split('.')[0])
+        elif family == BrowserFamily.CHROME:
+            return int(full_version.split('.')[0])
+        return -1
+        
+    
+    @classmethod
     def generate_full_version_list(cls, family: BrowserFamily, full_version: str, rand=None, loader: Optional['DataLoader'] = None) -> str:
         """
         Constructs the Sec-CH-UA-Full-Version-List header.
