@@ -26,6 +26,29 @@ jobs:
         python -m pip install --upgrade pip
         pip install --no-cache-dir aiohttp "beautifulsoup4"
 
+    - name: Download current data from latest release
+      run: |
+        # Get latest release data to use as baseline for comparison
+        echo "Fetching latest release data..."
+
+        # Try to download from latest release
+        DOWNLOAD_URL="https://github.com/sarperavci/UAForge/releases/latest/download/browser-data.tar.gz"
+
+        if wget -q "$DOWNLOAD_URL" -O browser-data.tar.gz 2>/dev/null; then
+          echo "✓ Downloaded latest release data"
+          tar -xzf browser-data.tar.gz -C uaforge/data/
+          rm browser-data.tar.gz
+          echo "✓ Extracted to uaforge/data/"
+        else
+          echo "⚠ No previous release found - this will be the first release"
+          echo "  Creating empty baseline files..."
+          # Create empty baseline files so update scripts have something to work with
+          touch uaforge/data/chrome_versions.json
+          touch uaforge/data/chromium_versions.json
+          touch uaforge/data/edge_versions.json
+          touch uaforge/data/opera_versions.json
+        fi
+
     - name: Update browser versions
       run: python scripts/update_browser_versions.py
 
@@ -35,22 +58,14 @@ jobs:
     - name: Update README with new stats
       run: python scripts/update_readme.py
 
-    - name: Check for changes in large data files
+    - name: Check for changes in data files
       id: data_changes
       run: |
-        if git diff --quiet uaforge/data/chrome_versions.json uaforge/data/chromium_versions.json uaforge/data/edge_versions.json uaforge/data/opera_versions.json; then
+        # Check if ANY JSON files have changed
+        if git diff --quiet uaforge/data/*.json; then
           echo "data_changed=false" >> $GITHUB_OUTPUT
         else
           echo "data_changed=true" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Check for changes in small files
-      id: small_changes
-      run: |
-        if git diff --quiet uaforge/data/device_models.json uaforge/data/market_share.json uaforge/data/os_distribution.json README.md; then
-          echo "small_changed=false" >> $GITHUB_OUTPUT
-        else
-          echo "small_changed=true" >> $GITHUB_OUTPUT
         fi
 
     - name: Create release with data files
@@ -110,11 +125,3 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Commit small file changes
-      if: steps.small_changes.outputs.small_changed == 'true'
-      run: |
-        git config --local user.email "github-actions[bot]@users.noreply.github.com"
-        git config --local user.name "github-actions[bot]"
-        git add uaforge/data/device_models.json uaforge/data/market_share.json uaforge/data/os_distribution.json README.md
-        git commit -m "chore: update market share and small data files"
-        git push

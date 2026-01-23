@@ -1,11 +1,6 @@
-# Explicitly include required data files in distribution
-# These small files are essential and always included in the package
-include uaforge/data/device_models.json
-include uaforge/data/market_share.json
-include uaforge/data/os_distribution.json
-
-# Large files (chrome_versions, chromium_versions, edge_versions, opera_versions)
-# are in .gitignore and downloaded during pip install via setup.py
+# ALL JSON data files are downloaded during pip install from GitHub releases
+# NO JSON files are included in the source distribution or committed to git
+# This keeps the package small and allows for independent data updates
 
 # Include documentation
 include README.md

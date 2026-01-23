@@ -13,16 +13,12 @@ dependencies = []
 include-package-data = true
 
 [tool.setuptools.package-data]
-# Explicitly include required data files
-# These small files are committed to git and included in the package
+# ALL JSON data files are downloaded during pip install via setup.py
+# They are NOT included in the package or committed to git
+# Only include non-JSON data files if any exist
 "uaforge" = [
-    "data/device_models.json",
-    "data/market_share.json",
-    "data/os_distribution.json",
     "data/*.txt"
 ]
-# Large files (chrome_versions, chromium_versions, edge_versions, opera_versions)
-# are in .gitignore and downloaded during pip install via setup.py
 
 [tool.setuptools.packages.find]
 where = ["."]
