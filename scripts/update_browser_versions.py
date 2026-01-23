@@ -20,11 +20,29 @@ def load_existing_data(filename: str) -> Dict:
         return {}
 
 
-def save_data(filename: str, data: Dict):
-    """Save data as minified JSON."""
+def save_data(filename: str, data: Dict) -> bool:
+    """
+    Save data as minified JSON only if it has changed.
+
+    Returns:
+        True if data was saved (changed), False if no changes detected
+    """
     file_path = BASE_PATH / filename
+
+    # Load existing data to compare
+    existing = load_existing_data(filename)
+
+    # Compare existing with new data
+    if existing == data:
+        print(f"  No changes detected in {filename}, skipping write")
+        return False
+
+    # Data has changed, save it
     with open(file_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, separators=(',', ':'), ensure_ascii=False)
+
+    print(f"  Saved changes to {filename}")
+    return True
 
 
 def update_chromium_versions():

@@ -173,9 +173,8 @@ class ClientHintsGenerator:
         if family in (BrowserFamily.FIREFOX, BrowserFamily.SAFARI):
             return ""
 
-        # Extract major version to create a flattened version like "120.0.0.0"
-        major = full_version.split('.')[0]
-        return f"{major}.0.0.0"
+        # Return the full version as-is (e.g., "142.0.7444.175")
+        return full_version
 
     @classmethod
     def generate_form_factors(cls, device_type: DeviceType, rand=None) -> str:
