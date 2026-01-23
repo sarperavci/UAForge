@@ -59,11 +59,8 @@ jobs:
         # Create release directory
         mkdir -p release-data
 
-        # Copy large data files
-        cp uaforge/data/chrome_versions.json release-data/
-        cp uaforge/data/chromium_versions.json release-data/
-        cp uaforge/data/edge_versions.json release-data/
-        cp uaforge/data/opera_versions.json release-data/
+        # Copy ALL JSON files from data directory to release
+        cp uaforge/data/*.json release-data/
 
         # Create compressed archive
         cd release-data
@@ -78,11 +75,11 @@ jobs:
         cat > release-notes.md << EOF
         # Browser Data Update
 
-        Updated browser version data files:
-        - Chrome versions
-        - Chromium versions
-        - Edge versions
-        - Opera versions
+        This release contains all browser and device data files:
+        - Browser version data (Chrome, Chromium, Edge, Opera)
+        - Device models database
+        - Market share data
+        - OS distribution templates
 
         **Usage:**
         These files are automatically downloaded when installing UAForge via pip.
@@ -91,7 +88,13 @@ jobs:
         \`\`\`bash
         wget https://github.com/sarperavci/UAForge/releases/download/$RELEASE_TAG/browser-data.tar.gz
         tar -xzf browser-data.tar.gz
+        # Extract to uaforge/data/ directory
         \`\`\`
+
+        **Contents:**
+        - All JSON data files needed for UAForge to function
+        - Complete browser version databases
+        - Device models and market share information
         EOF
 
     - name: Create GitHub Release
