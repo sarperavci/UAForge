@@ -1,6 +1,6 @@
 import random
 from typing import List, Tuple, Optional, TYPE_CHECKING
-from ..models.enums import BrowserFamily
+from ..models.enums import BrowserFamily, DeviceType
 
 if TYPE_CHECKING:
     from ..data.loader import DataLoader
@@ -163,3 +163,48 @@ class ClientHintsGenerator:
     @staticmethod
     def get_platform_token(platform: str) -> str:
         return platform
+
+    @classmethod
+    def generate_full_version(cls, family: BrowserFamily, full_version: str) -> str:
+        """
+        Constructs the Sec-CH-UA-Full-Version header.
+        Returns EMPTY STRING for Safari/Firefox.
+        """
+        if family in (BrowserFamily.FIREFOX, BrowserFamily.SAFARI):
+            return ""
+
+        # Extract major version to create a flattened version like "120.0.0.0"
+        major = full_version.split('.')[0]
+        return f"{major}.0.0.0"
+
+    @classmethod
+    def generate_form_factors(cls, device_type: DeviceType, rand=None) -> str:
+        """
+        Constructs the Sec-CH-UA-Form-Factors header.
+        """
+        if rand is None:
+            rand = random
+
+        if device_type == DeviceType.DESKTOP:
+            return "Desktop"
+        elif device_type == DeviceType.TABLET:
+            return "Tablet"
+        else:  # MOBILE
+            return "Mobile"
+
+    @staticmethod
+    def get_wow64_token(is_wow64: bool) -> str:
+        """
+        Constructs the Sec-CH-UA-WoW64 header.
+        """
+        return "?1" if is_wow64 else "?0"
+
+    @staticmethod
+    def get_prefers_color_scheme(rand=None) -> str:
+        """
+        Constructs the Sec-CH-Prefers-Color-Scheme header.
+        """
+        if rand is None:
+            rand = random
+        # Randomly choose between light and dark themes
+        return rand.choice(["light", "dark"])

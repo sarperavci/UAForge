@@ -64,10 +64,15 @@ class UserAgentData:
     ch_model: str             # Sec-CH-UA-Model
     ch_arch: str              # Sec-CH-UA-Arch
     ch_bitness: str           # Sec-CH-UA-Bitness
-    
+    ch_full_version: str      # Sec-CH-UA-Full-Version
+    ch_form_factors: str      # Sec-CH-UA-Form-Factors
+    ch_wow64: str             # Sec-CH-UA-WoW64
+    ch_prefers_color_scheme: str  # Sec-CH-Prefers-Color-Scheme
+
     __slots__ = ('user_agent', 'meta_os', 'meta_browser', 'meta_device',
                  'ch_brands', 'ch_full_version_list', 'ch_mobile', 'ch_platform',
-                 'ch_platform_version', 'ch_model', 'ch_arch', 'ch_bitness')
+                 'ch_platform_version', 'ch_model', 'ch_arch', 'ch_bitness',
+                 'ch_full_version', 'ch_form_factors', 'ch_wow64', 'ch_prefers_color_scheme')
 
     def get_headers(self) -> Dict[str, str]:
         """Returns a dictionary of all relevant HTTP headers."""
@@ -82,6 +87,14 @@ class UserAgentData:
             headers["Sec-CH-UA-Platform"] = f'"{self.ch_platform}"'
         if self.ch_full_version_list:
             headers["Sec-CH-UA-Full-Version-List"] = self.ch_full_version_list
+        if self.ch_full_version:
+            headers["Sec-CH-UA-Full-Version"] = f'"{self.ch_full_version}"'
+        if self.ch_form_factors:
+            headers["Sec-CH-UA-Form-Factors"] = f'"{self.ch_form_factors}"'
+        if self.ch_wow64:
+            headers["Sec-CH-UA-WoW64"] = self.ch_wow64
+        if self.ch_prefers_color_scheme:
+            headers["Sec-CH-Prefers-Color-Scheme"] = self.ch_prefers_color_scheme
         return headers
     
     def get_all_client_hints(self) -> Dict[str, str]:
@@ -104,6 +117,14 @@ class UserAgentData:
             headers["Sec-CH-UA-Arch"] = f'"{self.ch_arch}"'
         if self.ch_bitness:
             headers["Sec-CH-UA-Bitness"] = f'"{self.ch_bitness}"'
+        if self.ch_full_version:
+            headers["Sec-CH-UA-Full-Version"] = f'"{self.ch_full_version}"'
+        if self.ch_form_factors:
+            headers["Sec-CH-UA-Form-Factors"] = f'"{self.ch_form_factors}"'
+        if self.ch_wow64:
+            headers["Sec-CH-UA-WoW64"] = self.ch_wow64
+        if self.ch_prefers_color_scheme:
+            headers["Sec-CH-Prefers-Color-Scheme"] = self.ch_prefers_color_scheme
 
         return headers
 
