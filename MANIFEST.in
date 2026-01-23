@@ -1,7 +1,11 @@
-# Include data files in distribution
-# Note: Large files are in .gitignore and won't be included
-# They are downloaded during pip install via setup.py
-include uaforge/data/*.json
+# Explicitly include required data files in distribution
+# These small files are essential and always included in the package
+include uaforge/data/device_models.json
+include uaforge/data/market_share.json
+include uaforge/data/os_distribution.json
+
+# Large files (chrome_versions, chromium_versions, edge_versions, opera_versions)
+# are in .gitignore and downloaded during pip install via setup.py
 
 # Include documentation
 include README.md
