@@ -29,13 +29,8 @@ It also generates matching **Client Hints (`Sec-CH-UA`)** headers automaticallyâ
 pip install git+https://github.com/sarperavci/uaforge.git
 ```
 
-Notes:
-- Requires Python 3.9 or newer.
-- The package includes the JSON data files (market share, OS distribution, device models). If you see a DataLoadError about missing data files after installation, try upgrading to the latest release:
+*Note:* The repo does not contain the market-share data files due to size constraints. They are automatically downloaded from the release assets while installing.
 
-```bash
-pip install --upgrade git+https://github.com/sarperavci/uaforge.git
-```
 
 ## Quick Start
 
