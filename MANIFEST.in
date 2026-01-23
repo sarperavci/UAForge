@@ -1,3 +1,31 @@
-recursive-include uaforge/data *.json
-recursive-include uaforge/data *.txt
+# Include small data files in distribution
+include uaforge/data/device_models.json
+include uaforge/data/market_share.json
+include uaforge/data/os_distribution.json
+
+# Include documentation
 include README.md
+include LICENSE
+
+# Exclude large data files (downloaded from releases)
+exclude uaforge/data/chrome_versions.json
+exclude uaforge/data/chromium_versions.json
+exclude uaforge/data/edge_versions.json
+exclude uaforge/data/opera_versions.json
+
+# Exclude development and testing files
+exclude simple_test.py
+exclude test_*.py
+exclude demo*.py
+exclude validation_script.py
+exclude comprehensive_test.py
+exclude mobile_test.py
+exclude cleanup_history.sh
+exclude download_data.py
+
+# Exclude build artifacts
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude *$py.class
+global-exclude *.so
+global-exclude .DS_Store

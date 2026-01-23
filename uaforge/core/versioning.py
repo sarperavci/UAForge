@@ -86,6 +86,16 @@ class VersionExpander:
                 # Randomly select one of the available versions
                 return rand.choice(versions)
             else:
+                # Fallback: try other platforms if current platform has no data
+                fallback_platforms = ["linux", "windows", "macos"]
+                if platform in fallback_platforms:
+                    fallback_platforms.remove(platform)
+
+                for fallback_platform in fallback_platforms:
+                    versions = loader.get_chrome_versions(major_version, fallback_platform)
+                    if versions:
+                        return rand.choice(versions)
+
                 return f"{major_version}.0.0.0"
 
         except Exception:
@@ -119,6 +129,16 @@ class VersionExpander:
                 # Randomly select one of the available versions
                 return rand.choice(versions)
             else:
+                # Fallback: try other platforms if current platform has no data
+                fallback_platforms = ["windows", "macos", "linux"]
+                if platform in fallback_platforms:
+                    fallback_platforms.remove(platform)
+
+                for fallback_platform in fallback_platforms:
+                    versions = loader.get_edge_versions(major_version, fallback_platform)
+                    if versions:
+                        return rand.choice(versions)
+
                 return f"{major_version}.0.0.0"
 
         except Exception:
@@ -153,6 +173,16 @@ class VersionExpander:
                 # Randomly select one of the available versions
                 return rand.choice(versions)
             else:
+                # Fallback: try other platforms if current platform has no data
+                fallback_platforms = ["windows", "macos", "linux"]
+                if platform in fallback_platforms:
+                    fallback_platforms.remove(platform)
+
+                for fallback_platform in fallback_platforms:
+                    versions = loader.get_opera_versions(major_version, fallback_platform)
+                    if versions:
+                        return rand.choice(versions)
+
                 return f"{major_version}.0.0.0"
 
         except Exception:

@@ -82,3 +82,10 @@ pip-ephem-wheel-cache-*
 
 # System files
 .*.swp
+
+# Large data files (download at install/runtime instead)
+# Option: Remove these from git and fetch from GitHub releases or CDN
+uaforge/data/chrome_versions.json
+uaforge/data/chromium_versions.json
+uaforge/data/edge_versions.json
+uaforge/data/opera_versions.json

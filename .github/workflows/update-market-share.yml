@@ -35,20 +35,83 @@ jobs:
     - name: Update README with new stats
       run: python scripts/update_readme.py
 
-    - name: Check for changes
-      id: changes
+    - name: Check for changes in large data files
+      id: data_changes
       run: |
-        if git diff --quiet uaforge/data/*.json README.md; then
-          echo "changed=false" >> $GITHUB_OUTPUT
+        if git diff --quiet uaforge/data/chrome_versions.json uaforge/data/chromium_versions.json uaforge/data/edge_versions.json uaforge/data/opera_versions.json; then
+          echo "data_changed=false" >> $GITHUB_OUTPUT
         else
-          echo "changed=true" >> $GITHUB_OUTPUT
+          echo "data_changed=true" >> $GITHUB_OUTPUT
         fi
 
-    - name: Commit and push if changed
-      if: steps.changes.outputs.changed == 'true'
+    - name: Check for changes in small files
+      id: small_changes
+      run: |
+        if git diff --quiet uaforge/data/device_models.json uaforge/data/market_share.json uaforge/data/os_distribution.json README.md; then
+          echo "small_changed=false" >> $GITHUB_OUTPUT
+        else
+          echo "small_changed=true" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create release with data files
+      if: steps.data_changes.outputs.data_changed == 'true'
+      run: |
+        # Create release directory
+        mkdir -p release-data
+
+        # Copy large data files
+        cp uaforge/data/chrome_versions.json release-data/
+        cp uaforge/data/chromium_versions.json release-data/
+        cp uaforge/data/edge_versions.json release-data/
+        cp uaforge/data/opera_versions.json release-data/
+
+        # Create compressed archive
+        cd release-data
+        tar -czf browser-data.tar.gz *.json
+        cd ..
+
+        # Generate release tag with timestamp
+        RELEASE_TAG="data-$(date +'%Y%m%d-%H%M%S')"
+        echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
+
+        # Create release notes
+        cat > release-notes.md << EOF
+        # Browser Data Update
+
+        Updated browser version data files:
+        - Chrome versions
+        - Chromium versions
+        - Edge versions
+        - Opera versions
+
+        **Usage:**
+        These files are automatically downloaded when installing UAForge via pip.
+
+        **Manual download:**
+        \`\`\`bash
+        wget https://github.com/sarperavci/UAForge/releases/download/$RELEASE_TAG/browser-data.tar.gz
+        tar -xzf browser-data.tar.gz
+        \`\`\`
+        EOF
+
+    - name: Create GitHub Release
+      if: steps.data_changes.outputs.data_changed == 'true'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ env.RELEASE_TAG }}
+        name: Browser Data - ${{ env.RELEASE_TAG }}
+        body_path: release-notes.md
+        files: release-data/browser-data.tar.gz
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Commit small file changes
+      if: steps.small_changes.outputs.small_changed == 'true'
       run: |
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
-        git add uaforge/data/*.json README.md
-        git commit -m "chore: update browser data and market share"
+        git add uaforge/data/device_models.json uaforge/data/market_share.json uaforge/data/os_distribution.json README.md
+        git commit -m "chore: update market share and small data files"
         git push

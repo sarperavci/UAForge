@@ -8,6 +8,7 @@ from .mappings import MARKET_KEY_MAP
 from ..models.enums import BrowserFamily, DeviceType, OSType
 from ..exceptions import DataLoadError
 from ..core.alias_sampler import AliasSampler
+import sys
 
 
 @dataclass
@@ -34,7 +35,7 @@ class DataLoader:
     def __init__(self):
         if not self._loaded:
             self.base_path = Path(__file__).parent
-            
+
             # Raw Data Containers
             self.market_raw: Dict[str, Any] = {}
             self.os_dist_raw: Dict[str, Any] = {}
@@ -43,10 +44,13 @@ class DataLoader:
             self.edge_versions_raw: Dict[str, Any] = {}
             self.opera_versions_raw: Dict[str, Any] = {}
             self.chromium_versions_raw: Dict[str, Any] = {}
-            
+
             self.candidates: List[BrowserCandidate] = []
             self.weights: List[float] = []
-            
+
+            # Auto-download missing data files
+            self._ensure_data_files()
+
             self._load_data()
             self._process_market_share()
             # Precompute OS weight caches for faster sampling
@@ -61,6 +65,71 @@ class DataLoader:
                     if weights:
                         self._os_alias_samplers[scope][key] = weights  # store raw weights
             self._loaded = True
+
+    def _ensure_data_files(self):
+        """
+        Fallback to download missing data files.
+        Normally files are downloaded during pip install via setup.py.
+        This is only used if installation didn't complete properly.
+        """
+        required_files = [
+            "chrome_versions.json",
+            "chromium_versions.json",
+            "edge_versions.json",
+            "opera_versions.json",
+        ]
+
+        missing = [f for f in required_files if not (self.base_path / f).exists()]
+
+        if not missing:
+            return  # All files present
+
+        # Files missing - this shouldn't happen if pip install worked correctly
+        # Only auto-download in interactive mode
+        if not sys.stdout.isatty():
+            return  # Skip in non-interactive environments (CI/CD)
+
+        print(f"\n⚠️  Missing data files: {', '.join(missing)}")
+        print("Downloading from GitHub releases...", end=" ", flush=True)
+
+        try:
+            import urllib.request
+            import tarfile
+            import io
+
+            # Download from latest release
+            api_url = "https://api.github.com/repos/sarperavci/UAForge/releases"
+            req = urllib.request.Request(api_url)
+            req.add_header('Accept', 'application/vnd.github.v3+json')
+
+            with urllib.request.urlopen(req, timeout=10) as response:
+                releases = json.loads(response.read().decode())
+
+            # Find latest data release
+            data_release = None
+            for release in releases:
+                if release.get('tag_name', '').startswith('data-'):
+                    data_release = release
+                    break
+
+            if data_release:
+                assets = data_release.get('assets', [])
+                archive = next((a for a in assets if a['name'] == 'browser-data.tar.gz'), None)
+
+                if archive:
+                    with urllib.request.urlopen(archive['browser_download_url'], timeout=30) as response:
+                        archive_data = response.read()
+
+                    with tarfile.open(fileobj=io.BytesIO(archive_data), mode='r:gz') as tar:
+                        tar.extractall(path=self.base_path)
+
+                    print("✓\n")
+                    return
+
+        except Exception:
+            pass  # Silently fail - library will work with limited data
+
+        print("\nℹ️  Using limited browser version data.")
 
     def _load_data(self):
         """Loads JSON files from disk."""
