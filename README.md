@@ -47,6 +47,7 @@ identity = agent.generate()
 
 # 3. Get the headers (includes User-Agent AND Client Hints)
 headers = identity.get_headers()
+full_client_hints = identity.get_all_client_hints()
 
 # Use with requests/httpx
 # response = requests.get("https://httpbin.org/headers", headers=headers)
@@ -54,17 +55,38 @@ headers = identity.get_headers()
 print(f"Browser: {identity.meta_browser.value}")
 print(f"OS:      {identity.meta_os.value}")
 print(headers)
+print(full_client_hints)
 ```
 
 ### Sample Output
 
+Default Headers:
+
 ```json
 {
-    "User-Agent": "Mozilla/5.0 (Linux; Android 15; CPH2371) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Mobile Safari/537.36",
-    "Sec-CH-UA": "\"Google Chrome\";v=\"142\", \"Not)A(Brand\";v=\"24\", \"Chromium\";v=\"142\"",
-    "Sec-CH-UA-Mobile": "?1",
-    "Sec-CH-UA-Platform": "\"Android\"",
-    "Sec-CH-UA-Full-Version-List": "\"Google Chrome\";v=\"142.0.7737.142\", \"Chromium\";v=\"142.0.7737.142\", \"Not:A;Brand\";v=\"24\""
+"User-Agent": "Mozilla/5.0 (Linux; Android 13; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Mobile Safari/537.36",
+"Sec-CH-UA": "\"Not A Brand\";v=\"99\", \"Chromium\";v=\"144\", \"Google Chrome\";v=\"144\"",
+"Sec-CH-UA-Mobile": "?1",
+"Sec-CH-UA-Platform": "\"Android\""
+}
+```
+
+Full Client Hints:
+
+```json
+{
+"Sec-CH-UA": "\"Not A Brand\";v=\"99\", \"Chromium\";v=\"144\", \"Google Chrome\";v=\"144\"",
+"Sec-CH-UA-Mobile": "?1",
+"Sec-CH-UA-Platform": "\"Android\"",
+"Sec-CH-UA-Full-Version-List": "\"Not A Brand\";v=\"99.0.0.0\", \"Chromium\";v=\"144.0.7559.59\", \"Google Chrome\";v=\"144.0.7559.59\"",
+"Sec-CH-UA-Platform-Version": "13.0.0",
+"Sec-CH-UA-Model": "\"Pixel 9\"",
+"Sec-CH-UA-Arch": "\"arm\"",
+"Sec-CH-UA-Bitness": "\"64\"",
+"Sec-CH-UA-Full-Version": "\"144.0.7559.59\"",
+"Sec-CH-UA-Form-Factors": "\"Mobile\"",
+"Sec-CH-UA-WoW64": "?0",
+"Sec-CH-Prefers-Color-Scheme": "dark"
 }
 ```
 
