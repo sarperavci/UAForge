@@ -15,7 +15,46 @@ class UserAgentGenerator:
         self.rand = random.Random(seed)
         self.candidate_sampler = AliasSampler(self.loader.weights, self.rand)
 
-        # Store browser metadata for UA building
+        self._os_template_samplers = {}
+        for os_key, templates in self.loader.os_dist_raw.get("os_templates", {}).items():
+            if templates:
+                weights = [t.get('probability', 1.0) for t in templates]
+                self._os_template_samplers[os_key] = AliasSampler(weights, self.rand)
+
+        self._os_choice_cache = {}
+        for candidate in self.loader.candidates:
+            if candidate.device_type == DeviceType.MOBILE:
+                if candidate.family == BrowserFamily.CHROME:
+                    key = "and_chr"
+                elif candidate.family == BrowserFamily.FIREFOX:
+                    key = "and_ff"
+                elif candidate.family == BrowserFamily.SAFARI:
+                    key = "ios_saf"
+                elif candidate.family == BrowserFamily.OPERA:
+                    key = "op_mob"
+                else:
+                    key = "android"
+                weight_key = "mobile_weights"
+            else:
+                key = candidate.family.value
+                weight_key = "desktop_weights"
+
+            cache_key = (key, weight_key)
+            if cache_key not in self._os_choice_cache:
+                choices, weights = self.loader.get_os_choices_and_weights(key, weight_key)
+                if choices and weights:
+                    self._os_choice_cache[cache_key] = {
+                        'sampler': AliasSampler(weights, self.rand),
+                        'choices': choices
+                    }
+
+        self._device_model_cache = {
+            "samsung": self.loader.get_device_models("samsung"),
+            "google_pixel": self.loader.get_device_models("google_pixel"),
+            "oppo_realme_generic": self.loader.get_device_models("oppo_realme_generic"),
+            "xiaomi_ecosystem": self.loader.get_device_models("xiaomi_ecosystem")
+        }
+
         self._ua_metadata = []
         for c in self.loader.candidates:
             self._ua_metadata.append({
@@ -82,8 +121,9 @@ class UserAgentGenerator:
         """
         Decides which OS to use based on the browser candidate.
         Uses os_distribution.json templates to determine strings and platform versions.
+        Uses cached samplers to avoid creating AliasSampler instances on every call.
         """
-        # Determine the key for OS selection based on device type and family
+        # Determine cache key for OS selection based on device type and family
         if candidate.device_type == DeviceType.MOBILE:
             if candidate.family == BrowserFamily.CHROME:
                 key = "and_chr"
@@ -95,13 +135,17 @@ class UserAgentGenerator:
                 key = "op_mob"
             else:
                 key = "android"
-            choices, weights = self.loader.get_os_choices_and_weights(key, "mobile_weights")
+            weight_key = "mobile_weights"
         else:
             key = candidate.family.value
-            choices, weights = self.loader.get_os_choices_and_weights(key, "desktop_weights")
+            weight_key = "desktop_weights"
 
-        # Fallback if no choices available
-        if not choices or not weights:
+        # Look up cached sampler and choices
+        cache_key = (key, weight_key)
+        cached = self._os_choice_cache.get(cache_key)
+
+        # Fallback if no cached data available
+        if not cached:
             return {
                 "type": OSType.LINUX,
                 "platform_header": "Linux",
@@ -109,9 +153,8 @@ class UserAgentGenerator:
                 "platform_version": "5.0.0"
             }
 
-        # Sample OS configuration on-the-fly
-        sampler = AliasSampler(weights, self.rand)
-        selected_os_config = choices[sampler.sample()]
+        # Use cached sampler to select OS configuration
+        selected_os_config = cached['choices'][cached['sampler'].sample()]
 
         os_key = selected_os_config['os']
         platform_header = selected_os_config['platform']
@@ -121,10 +164,11 @@ class UserAgentGenerator:
         pv = "0.0.0"
 
         if templates:
-            # Sample OS template on-the-fly with weights
-            weights = [t.get('probability', 1.0) for t in templates]
-            template_sampler = AliasSampler(weights, self.rand)
-            selected_template = templates[template_sampler.sample()]
+            template_sampler = self._os_template_samplers.get(os_key)
+            if template_sampler:
+                selected_template = templates[template_sampler.sample()]
+            else:
+                selected_template = self.rand.choice(templates)
 
             ua_token = selected_template['ua_token']
 
@@ -152,12 +196,11 @@ class UserAgentGenerator:
         if family == BrowserFamily.SAFARI:
             return HardwareInfo(device_type=DeviceType.MOBILE, model="iPhone", brand_header_value='"iPhone";v="16"')
         elif family == BrowserFamily.CHROME and self.rand.random() < 0.3:
-            model_list = self.loader.get_device_models("google_pixel")
+            model_list = self._device_model_cache.get("google_pixel", [])
         else:
-            # For other mobile browsers (Chrome, Firefox, Opera, Edge), use generic Android devices
             cats = ["samsung", "oppo_realme_generic", "xiaomi_ecosystem", "google_pixel"]
             cat = self.rand.choice(cats)
-            model_list = self.loader.get_device_models(cat)
+            model_list = self._device_model_cache.get(cat, [])
 
         if not model_list:
              return HardwareInfo(device_type=DeviceType.MOBILE, model="Generic Android", cpu_arch="arm64")
@@ -251,7 +294,8 @@ class UserAgentGenerator:
             ch_platform = os_data['platform_header']
             ch_platform_version = os_data['platform_version']
             ch_model = hw_info.model if candidate.device_type == DeviceType.MOBILE and hw_info.model else ""
-            ch_arch = "x86" if "x86" in hw_info.cpu_arch else "arm"
+            # Optimize: desktop is always x86_64, mobile is always arm64
+            ch_arch = "arm" if candidate.device_type == DeviceType.MOBILE else "x86"
             ch_bitness = "64"
             ch_full = full_version_list
             ch_full_version = full_version_hint
