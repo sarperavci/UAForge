@@ -73,12 +73,21 @@ class AliasSampler:
             l = small.pop()
             self.prob[l] = 1.0
     
-    def sample(self) -> int:
-        """Sample an index in O(1) time."""
+    def sample(self, rand: random.Random = None) -> int:
+        """
+        Sample an index in O(1) time.
+
+        Args:
+            rand: Optional random instance to use instead of self.rng
+
+        Returns:
+            Sampled index
+        """
+        rng = rand if rand is not None else self.rng
         # Generate fair die roll
-        i = self.rng.randrange(self.n)
+        i = rng.randrange(self.n)
         # Flip biased coin
-        if self.rng.random() < self.prob[i]:
+        if rng.random() < self.prob[i]:
             return i
         else:
             return self.alias[i]
