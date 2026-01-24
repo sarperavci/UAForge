@@ -1,5 +1,5 @@
 import random
-from typing import Optional, Dict, List
+from typing import Optional, Dict, Union
 
 from ..data.loader import DataLoader, BrowserCandidate
 from ..models.enums import BrowserFamily, DeviceType, OSType, EngineType
@@ -11,6 +11,7 @@ from .alias_sampler import AliasSampler
 
 class UserAgentGenerator:
     def __init__(self, seed: Optional[int] = None):
+        self.seed = seed if seed is not None else 0  # Store base seed
         self.loader: DataLoader = DataLoader()
         self.rand: random.Random = random.Random(seed)
         self.candidate_sampler: AliasSampler = AliasSampler(self.loader.weights, self.rand)
@@ -123,12 +124,21 @@ class UserAgentGenerator:
             # Default to linux for Android and other OS types
             return "linux"
 
-    def _resolve_os(self, candidate: BrowserCandidate) -> Dict:
+    def _resolve_os(self, candidate: BrowserCandidate, rand=None) -> Dict:
         """
         Decides which OS to use based on the browser candidate.
         Uses os_distribution.json templates to determine strings and platform versions.
         Uses cached samplers to avoid creating AliasSampler instances on every call.
+
+        Args:
+            candidate: Browser candidate
+            rand: Optional random instance to use
+
+        Returns:
+            Dictionary with OS information
         """
+        if rand is None:
+            rand = self.rand
         # Determine cache key for OS selection based on device type and family
         if candidate.device_type == DeviceType.MOBILE:
             if candidate.family == BrowserFamily.CHROME:
@@ -160,7 +170,7 @@ class UserAgentGenerator:
             }
 
         # Use cached sampler to select OS configuration
-        selected_os_config = cached['choices'][cached['sampler'].sample()]
+        selected_os_config = cached['choices'][cached['sampler'].sample(rand=rand)]
 
         os_key = selected_os_config['os']
         platform_header = selected_os_config['platform']
@@ -172,9 +182,9 @@ class UserAgentGenerator:
         if templates:
             template_sampler = self._os_template_samplers.get(os_key)
             if template_sampler:
-                selected_template = templates[template_sampler.sample()]
+                selected_template = templates[template_sampler.sample(rand=rand)]
             else:
-                selected_template = self.rand.choice(templates)
+                selected_template = rand.choice(templates)
 
             ua_token = selected_template['ua_token']
 
@@ -182,9 +192,9 @@ class UserAgentGenerator:
                 pv = selected_template['platform_version']
             else:
                 if os_key == "ios":
-                    pv = f"{self.rand.randint(16,17)}.{self.rand.randint(0,5)}.0"
+                    pv = f"{rand.randint(16,17)}.{rand.randint(0,5)}.0"
                 elif os_key == "linux":
-                    pv = f"{self.rand.randint(5,6)}.{self.rand.randint(4,19)}.0"
+                    pv = f"{rand.randint(5,6)}.{rand.randint(4,19)}.0"
                 else:
                     pv = "1.0.0"
 
@@ -195,23 +205,37 @@ class UserAgentGenerator:
             "platform_version": pv,
         }
 
-    def _resolve_hardware(self, device_type: DeviceType, family: BrowserFamily) -> HardwareInfo:
+    def _resolve_hardware(self, device_type: DeviceType, family: BrowserFamily, rand=None) -> HardwareInfo:
+        """
+        Resolve hardware information based on device type and browser family.
+
+        Args:
+            device_type: Device type
+            family: Browser family
+            rand: Optional random instance to use
+
+        Returns:
+            HardwareInfo object
+        """
+        if rand is None:
+            rand = self.rand
+
         if device_type == DeviceType.DESKTOP:
             return HardwareInfo(device_type=DeviceType.DESKTOP, model=None, cpu_arch="x86_64")
 
         if family == BrowserFamily.SAFARI:
             return HardwareInfo(device_type=DeviceType.MOBILE, model="iPhone", brand_header_value='"iPhone";v="16"')
-        elif family == BrowserFamily.CHROME and self.rand.random() < 0.3:
+        elif family == BrowserFamily.CHROME and rand.random() < 0.3:
             model_list = self._device_model_cache.get("google_pixel", [])
         else:
             cats = ["samsung", "oppo_realme_generic", "xiaomi_ecosystem", "google_pixel"]
-            cat = self.rand.choice(cats)
+            cat = rand.choice(cats)
             model_list = self._device_model_cache.get(cat, [])
 
         if not model_list:
              return HardwareInfo(device_type=DeviceType.MOBILE, model="Generic Android", cpu_arch="arm64")
 
-        selected_model = self.rand.choice(model_list)
+        selected_model = rand.choice(model_list)
 
         return HardwareInfo(
             device_type=DeviceType.MOBILE,
@@ -219,12 +243,51 @@ class UserAgentGenerator:
             cpu_arch="arm64"
         )
 
-    def generate(self) -> UserAgentData:
-        idx = self.candidate_sampler.sample()
+    def _session_to_seed(self, session: Union[str, int, None]) -> Optional[int]:
+        """
+        Convert a session identifier to a deterministic seed.
+        
+        Args:
+            session: Session identifier (string, int, or None)
+
+        Returns:
+            Deterministic seed derived from session, or None if session is None
+        """
+        if session is None:
+            return None
+
+        session_str = str(session)
+        h = self.seed
+        for char in session_str:
+            h = (h * 31 + ord(char)) & 0x7FFFFFFF
+
+        return h
+
+    def generate(self, session: Union[str, int, None] = None) -> UserAgentData:
+        """
+        Generate a user agent identity.
+
+        Args:
+            session: Optional session identifier for deterministic generation.
+                     Same session will always produce the same user agent.
+                     If None, uses the generator's default random state.
+
+        Returns:
+            UserAgentData object containing user agent string and client hints
+        """
+        # Create session-specific random instance if session is provided
+        if session is not None:
+            session_seed = self._session_to_seed(session)
+            session_rand = random.Random(session_seed)
+        else:
+            session_rand = self.rand
+
+        # Sample browser candidate
+        idx = self.candidate_sampler.sample(rand=session_rand)
         candidate = self.loader.candidates[idx]
 
         # OS & Platform - resolve first so we can use it for version generation
-        os_data = self._resolve_os(candidate)
+        os_data = self._resolve_os(candidate, rand=session_rand)
 
         # Map OSType to platform string for Chrome version lookup
         platform = self._map_os_to_platform(os_data['type'])
@@ -233,23 +296,23 @@ class UserAgentGenerator:
         full_version = VersionExpander.generate_full_version(
             candidate.family,
             candidate.version,
-            rand=self.rand,
+            rand=session_rand,
             platform=platform,
             loader=self.loader
         )
         major_version = full_version.split('.', 1)[0]
         full_version_flattened = major_version + '.0.0.0'
-        
+
         # get internal chromium version
         chromium_version = ClientHintsGenerator.get_major_chromium_full_version(
             candidate.family,
             full_version,
-            rand=self.rand,
+            rand=session_rand,
             loader=self.loader
         )
-        
+
         # Hardware
-        hw_info = self._resolve_hardware(candidate.device_type, candidate.family)
+        hw_info = self._resolve_hardware(candidate.device_type, candidate.family, rand=session_rand)
 
         # Construct UA String
         os_token = os_data['ua_token']
@@ -274,11 +337,11 @@ class UserAgentGenerator:
         )
         
         # Handle Client Hints
-        brands = ClientHintsGenerator.generate_brands(candidate.family, candidate.version, rand=self.rand)
+        brands = ClientHintsGenerator.generate_brands(candidate.family, candidate.version, rand=session_rand)
         full_version_list = ClientHintsGenerator.generate_full_version_list(
             candidate.family,
             full_version,
-            rand=self.rand,
+            rand=session_rand,
             loader=self.loader
         )
         full_version_hint = ClientHintsGenerator.generate_full_version(candidate.family, full_version)
@@ -305,9 +368,9 @@ class UserAgentGenerator:
             ch_bitness = "64"
             ch_full = full_version_list
             ch_full_version = full_version_hint
-            ch_form_factors = ClientHintsGenerator.generate_form_factors(candidate.device_type, rand=self.rand)
+            ch_form_factors = ClientHintsGenerator.generate_form_factors(candidate.device_type, rand=session_rand)
             ch_wow64 = ClientHintsGenerator.get_wow64_token(False)  # Assuming not WoW64 by default
-            ch_prefers_color_scheme = ClientHintsGenerator.get_prefers_color_scheme(rand=self.rand)
+            ch_prefers_color_scheme = ClientHintsGenerator.get_prefers_color_scheme(rand=session_rand)
 
         return UserAgentData(
             user_agent=ua_string,
