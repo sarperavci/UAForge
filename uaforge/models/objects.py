@@ -85,16 +85,6 @@ class UserAgentData:
             headers["Sec-CH-UA-Mobile"] = self.ch_mobile
         if self.ch_platform:
             headers["Sec-CH-UA-Platform"] = f'"{self.ch_platform}"'
-        if self.ch_full_version_list:
-            headers["Sec-CH-UA-Full-Version-List"] = self.ch_full_version_list
-        if self.ch_full_version:
-            headers["Sec-CH-UA-Full-Version"] = f'"{self.ch_full_version}"'
-        if self.ch_form_factors:
-            headers["Sec-CH-UA-Form-Factors"] = f'"{self.ch_form_factors}"'
-        if self.ch_wow64:
-            headers["Sec-CH-UA-WoW64"] = self.ch_wow64
-        if self.ch_prefers_color_scheme:
-            headers["Sec-CH-Prefers-Color-Scheme"] = self.ch_prefers_color_scheme
         return headers
     
     def get_all_client_hints(self) -> Dict[str, str]:
