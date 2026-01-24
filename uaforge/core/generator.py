@@ -1,5 +1,5 @@
 import random
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 
 from ..data.loader import DataLoader, BrowserCandidate
 from ..models.enums import BrowserFamily, DeviceType, OSType, EngineType
@@ -11,17 +11,17 @@ from .alias_sampler import AliasSampler
 
 class UserAgentGenerator:
     def __init__(self, seed: Optional[int] = None):
-        self.loader = DataLoader()
-        self.rand = random.Random(seed)
-        self.candidate_sampler = AliasSampler(self.loader.weights, self.rand)
+        self.loader: DataLoader = DataLoader()
+        self.rand: random.Random = random.Random(seed)
+        self.candidate_sampler: AliasSampler = AliasSampler(self.loader.weights, self.rand)
 
-        self._os_template_samplers = {}
+        self._os_template_samplers: Dict[str, AliasSampler] = {}
         for os_key, templates in self.loader.os_dist_raw.get("os_templates", {}).items():
             if templates:
                 weights = [t.get('probability', 1.0) for t in templates]
                 self._os_template_samplers[os_key] = AliasSampler(weights, self.rand)
 
-        self._os_choice_cache = {}
+        self._os_choice_cache: Dict[tuple, Dict] = {}
         for candidate in self.loader.candidates:
             if candidate.device_type == DeviceType.MOBILE:
                 if candidate.family == BrowserFamily.CHROME:
@@ -48,14 +48,14 @@ class UserAgentGenerator:
                         'choices': choices
                     }
 
-        self._device_model_cache = {
+        self._device_model_cache: Dict[str, list] = {
             "samsung": self.loader.get_device_models("samsung"),
             "google_pixel": self.loader.get_device_models("google_pixel"),
             "oppo_realme_generic": self.loader.get_device_models("oppo_realme_generic"),
             "xiaomi_ecosystem": self.loader.get_device_models("xiaomi_ecosystem")
         }
 
-        self._ua_metadata = []
+        self._ua_metadata: list = []
         for c in self.loader.candidates:
             self._ua_metadata.append({
                 'family': c.family,
@@ -96,7 +96,13 @@ class UserAgentGenerator:
             return (f"Mozilla/5.0 ({final_os_token}) AppleWebKit/{webkit_version} (KHTML, like Gecko) "
                     f"Version/{marketing_version} Mobile/15E148 Safari/{webkit_version}")
 
-        else:  # Opera or other Chromium-based
+        elif family == BrowserFamily.OPERA:
+            chromium_major = int(full_version.split('.')[0]) + 16
+            chromium_version = f"{chromium_major}.0.0.0"
+            return (f"Mozilla/5.0 ({os_token}) AppleWebKit/537.36 (KHTML, like Gecko) "
+                    f"Chrome/{chromium_version} Safari/537.36 OPR/{full_version}")
+
+        else:  # Other Chromium-based
             return f"Mozilla/5.0 ({os_token}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{full_version} Safari/537.36"
 
     def _map_os_to_platform(self, os_type: OSType) -> str:
