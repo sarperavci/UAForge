@@ -319,11 +319,15 @@ class UserAgentGenerator:
 
         # Android Model Injection
         if candidate.device_type == DeviceType.MOBILE and os_data['type'] == OSType.ANDROID:
-            if hw_info.model and chromium_version >= 110:
-                #"Linux; Android 14; K"
-                os_token = f"{os_token}; K" # https://www.chromium.org/updates/ua-reduction
+            # Check if this is a Chromium-based browser
+            is_chromium = candidate.family in [BrowserFamily.CHROME, BrowserFamily.EDGE, BrowserFamily.OPERA]
+
+            if hw_info.model and is_chromium and chromium_version >= 110:
+                # Chrome 110+ uses fixed Android 10 and model K for user-agent reduction
+                # https://www.chromium.org/updates/ua-reduction
+                os_token = "Linux; Android 10; K"
             elif hw_info.model:
-                #"Linux; Android 14; SM-S918B"
+                # Older Chrome versions or non-Chromium browsers include actual device model
                 os_token = f"{os_token}; {hw_info.model}"
 
         # Build UA string using metadata
