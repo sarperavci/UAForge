@@ -263,7 +263,7 @@ class UserAgentGenerator:
 
         return h
 
-    def generate(self, session: Union[str, int, None] = None) -> UserAgentData:
+    def generate(self, session: Union[str, int, None] = None, realistic: bool = True) -> UserAgentData:
         """
         Generate a user agent identity.
 
@@ -321,8 +321,9 @@ class UserAgentGenerator:
         if candidate.device_type == DeviceType.MOBILE and os_data['type'] == OSType.ANDROID:
             # Check if this is a Chromium-based browser
             is_chromium = candidate.family in [BrowserFamily.CHROME, BrowserFamily.EDGE, BrowserFamily.OPERA]
-
-            if hw_info.model and is_chromium and chromium_version >= 110:
+            if not realistic:
+                os_token = f"{os_token}; {hw_info.model}"
+            elif hw_info.model and is_chromium and chromium_version >= 110:
                 # Chrome 110+ uses fixed Android 10 and model K for user-agent reduction
                 # https://www.chromium.org/updates/ua-reduction
                 os_token = "Linux; Android 10; K"
@@ -331,12 +332,17 @@ class UserAgentGenerator:
                 os_token = f"{os_token}; {hw_info.model}"
 
         # Build UA string using metadata
+        if realistic:
+            browser_version = full_version_flattened
+        else:
+            browser_version = full_version
+            
         metadata = self._ua_metadata[idx]
         ua_string = self._build_ua_string(
             metadata['family'],
             metadata['device'],
             os_token,
-            full_version_flattened,
+            browser_version,
             metadata['version']  # Safari marketing version
         )
         
