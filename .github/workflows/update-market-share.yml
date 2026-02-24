@@ -26,27 +26,27 @@ jobs:
         python -m pip install --upgrade pip
         pip install --no-cache-dir aiohttp "beautifulsoup4"
 
-    - name: Download current data from latest release
+    - name: Download and prepare release data
       run: |
-        # Get latest release data to use as baseline for comparison
-        echo "Fetching latest release data..."
-
-        # Try to download from latest release
+        echo "Downloading latest release data..."
         DOWNLOAD_URL="https://github.com/sarperavci/UAForge/releases/latest/download/browser-data.tar.gz"
-
+        
         if wget -q "$DOWNLOAD_URL" -O browser-data.tar.gz 2>/dev/null; then
-          echo "✓ Downloaded latest release data"
+          echo "✓ Downloaded latest release"
+          
+          # First, extract to working directory so scripts can build on existing data
           tar -xzf browser-data.tar.gz -C uaforge/data/
-          rm browser-data.tar.gz
           echo "✓ Extracted to uaforge/data/"
+          
+          # Also keep a backup copy for comparison later
+          mkdir -p old-release-data
+          tar -xzf browser-data.tar.gz -C old-release-data/
+          rm browser-data.tar.gz
+          echo "✓ Saved backup for comparison"
         else
           echo "⚠ No previous release found - this will be the first release"
-          echo "  Creating empty baseline files..."
-          # Create empty baseline files so update scripts have something to work with
-          touch uaforge/data/chrome_versions.json
-          touch uaforge/data/chromium_versions.json
-          touch uaforge/data/edge_versions.json
-          touch uaforge/data/opera_versions.json
+          mkdir -p old-release-data
+          echo "  Scripts will start with empty data files"
         fi
 
     - name: Update browser versions
@@ -61,11 +61,33 @@ jobs:
     - name: Check for changes in data files
       id: data_changes
       run: |
-        # Check if ANY JSON files have changed
-        if git diff --quiet uaforge/data/*.json; then
-          echo "data_changed=false" >> $GITHUB_OUTPUT
-        else
+        # Compare current data files with old release
+        # Files are gitignored, so we compare with downloaded backup
+        
+        CHANGED=false
+        
+        # Check each JSON file for changes
+        for file in uaforge/data/*.json; do
+          filename=$(basename "$file")
+          if [ -f "old-release-data/$filename" ]; then
+            # File exists in old release, compare them
+            if ! cmp -s "$file" "old-release-data/$filename"; then
+              echo "Changed: $filename"
+              CHANGED=true
+            fi
+          else
+            # New file that didn't exist in old release
+            echo "New file: $filename"
+            CHANGED=true
+          fi
+        done
+        
+        if [ "$CHANGED" = true ]; then
           echo "data_changed=true" >> $GITHUB_OUTPUT
+          echo "✓ Data changes detected - will create release"
+        else
+          echo "data_changed=false" >> $GITHUB_OUTPUT
+          echo "⚠ No data changes detected"
         fi
 
     - name: Create release with data files
