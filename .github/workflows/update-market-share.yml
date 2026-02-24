@@ -58,6 +58,20 @@ jobs:
     - name: Update README with new stats
       run: python scripts/update_readme.py
 
+    - name: Commit README changes
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        
+        if git diff --quiet README.md; then
+          echo "⚠ No changes to README.md"
+        else
+          git add README.md
+          git commit -m "docs: update browser market share statistics [skip ci]"
+          git push
+          echo "✓ Committed and pushed README.md updates"
+        fi
+
     - name: Check for changes in data files
       id: data_changes
       run: |
