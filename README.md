@@ -153,7 +153,7 @@ The table below shows the aggregated browser market share from the current datas
 | IE | 0.24% |
 | Android Browser | 0.12% |
 
-*Last updated: 29-03-2026*
+*Last updated: 05-04-2026*
 
 ## License
 
