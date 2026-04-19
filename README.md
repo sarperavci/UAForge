@@ -152,7 +152,7 @@ The table below shows the aggregated browser market share from the current datas
 | Firefox for Android | 0.31% |
 | IE | 0.26% |
 
-*Last updated: 12-04-2026*
+*Last updated: 19-04-2026*
 
 ## License
 
