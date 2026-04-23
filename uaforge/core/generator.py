@@ -263,37 +263,36 @@ class UserAgentGenerator:
 
         return h
 
-    def generate(self, session: Union[str, int, None] = None, realistic: bool = True, weighted: bool = True) -> UserAgentData:
-        """
-        Generate a user agent identity.
+    def _candidate_chromium_version(self, candidate: BrowserCandidate) -> int:
+        major = int(candidate.version.split('.')[0])
+        if candidate.family == BrowserFamily.CHROME:
+            return major
+        elif candidate.family == BrowserFamily.EDGE:
+            return major
+        elif candidate.family == BrowserFamily.OPERA:
+            return major + 16
+        return 0
 
-        Args:
-            session: Optional session identifier for deterministic generation.
-                     Same session will always produce the same user agent.
-                     If None, uses the generator's default random state.
-            realistic: If True, generates more realistic user agents by flattening versions and applying Android model injection rules.
-                        If False, generates more diverse user agents with full version numbers and actual Android models.
-            weighted: If True, browser selection follows real-world market share distribution.
-                      If False, all browser/version/device candidates are equally likely to be selected.
-                      Use weighted=False with realistic=True to get structurally correct but evenly
-                      distributed user agents (avoids generating too many identical UAs).
-
-        Returns:
-            UserAgentData object containing user agent string and client hints
-        """
-        # Create session-specific random instance if session is provided
+    def generate(self, session: Union[str, int, None] = None, realistic: bool = True, weighted: bool = True, min_chromium_version: int = 0) -> UserAgentData:
         if session is not None:
             session_seed = self._session_to_seed(session)
             session_rand = random.Random(session_seed)
         else:
             session_rand = self.rand
 
-        # Sample browser candidate
-        if weighted:
-            idx = self.candidate_sampler.sample(rand=session_rand)
-        else:
-            idx = session_rand.randrange(len(self.loader.candidates))
-        candidate = self.loader.candidates[idx]
+        while True:
+            if weighted:
+                idx = self.candidate_sampler.sample(rand=session_rand)
+            else:
+                idx = session_rand.randrange(len(self.loader.candidates))
+            candidate = self.loader.candidates[idx]
+
+            if min_chromium_version <= 0:
+                break
+
+            chromium_ver = self._candidate_chromium_version(candidate)
+            if chromium_ver >= min_chromium_version:
+                break
 
         # OS & Platform - resolve first so we can use it for version generation
         os_data = self._resolve_os(candidate, rand=session_rand)
