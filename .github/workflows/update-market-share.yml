@@ -1,163 +1,70 @@
-name: Update Browser Data
+name: Refresh data + publish to PyPI
 
 on:
   schedule:
-    # Run every 7 days (weekly) - at 00:00 UTC on Sunday
-    - cron: '0 0 * * 0'
-  workflow_dispatch:  # Allow manual trigger
+    - cron: "0 3 */10 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
-  update-browser-data:
+  publish:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
+    environment: pypi
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.10" }
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install --no-cache-dir aiohttp "beautifulsoup4"
+      - name: Install build + fetch deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install --no-cache-dir build twine aiohttp beautifulsoup4
 
-    - name: Download and prepare release data
-      run: |
-        echo "Downloading latest release data..."
-        DOWNLOAD_URL="https://github.com/sarperavci/UAForge/releases/latest/download/browser-data.tar.gz"
-        
-        if wget -q "$DOWNLOAD_URL" -O browser-data.tar.gz 2>/dev/null; then
-          echo "✓ Downloaded latest release"
-          
-          # First, extract to working directory so scripts can build on existing data
-          tar -xzf browser-data.tar.gz -C uaforge/data/
-          echo "✓ Extracted to uaforge/data/"
-          
-          # Also keep a backup copy for comparison later
-          mkdir -p old-release-data
-          tar -xzf browser-data.tar.gz -C old-release-data/
-          rm browser-data.tar.gz
-          echo "✓ Saved backup for comparison"
-        else
-          echo "⚠ No previous release found - this will be the first release"
-          mkdir -p old-release-data
-          echo "  Scripts will start with empty data files"
-        fi
+      - name: Regenerate JSON data
+        run: |
+          mkdir -p uaforge/data
+          python scripts/update_browser_versions.py
+          python scripts/parse_caniuse.py
+          python scripts/update_readme.py
+          ls -la uaforge/data/
 
-    - name: Update browser versions
-      run: python scripts/update_browser_versions.py
+      - name: Bump patch version
+        id: bump
+        run: |
+          CURRENT=$(grep -E '^version' pyproject.toml | head -1 | cut -d'"' -f2)
+          IFS='.' read -r MAJ MIN PATCH <<< "$CURRENT"
+          NEW="$MAJ.$MIN.$((PATCH + 1))"
+          sed -i "s/^version = \"$CURRENT\"/version = \"$NEW\"/" pyproject.toml
+          echo "version=$NEW" >> "$GITHUB_OUTPUT"
+          echo "Bumped $CURRENT -> $NEW"
 
-    - name: Run market share updater
-      run: python scripts/parse_caniuse.py
+      - name: Build wheel + sdist
+        run: python -m build
 
-    - name: Update README with new stats
-      run: python scripts/update_readme.py
+      - name: Sanity-check wheel contains data
+        run: |
+          python -m zipfile -l dist/*.whl | grep -E 'uaforge/data/.*\.json' || {
+            echo "::error::JSON data missing from wheel"; exit 1; }
 
-    - name: Commit README changes
-      run: |
-        git config --local user.email "github-actions[bot]@users.noreply.github.com"
-        git config --local user.name "github-actions[bot]"
-        
-        if git diff --quiet README.md; then
-          echo "⚠ No changes to README.md"
-        else
-          git add README.md
-          git commit -m "docs: update browser market share statistics [skip ci]"
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: twine upload --skip-existing dist/*
+
+      - name: Commit version bump + README
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add pyproject.toml README.md
+          git diff --cached --quiet || git commit -m "release: v${{ steps.bump.outputs.version }} [skip ci]"
           git push
-          echo "✓ Committed and pushed README.md updates"
-        fi
 
-    - name: Check for changes in data files
-      id: data_changes
-      run: |
-        # Compare current data files with old release
-        # Files are gitignored, so we compare with downloaded backup
-        
-        CHANGED=false
-        
-        # Check each JSON file for changes
-        for file in uaforge/data/*.json; do
-          filename=$(basename "$file")
-          if [ -f "old-release-data/$filename" ]; then
-            # File exists in old release, compare them
-            if ! cmp -s "$file" "old-release-data/$filename"; then
-              echo "Changed: $filename"
-              CHANGED=true
-            fi
-          else
-            # New file that didn't exist in old release
-            echo "New file: $filename"
-            CHANGED=true
-          fi
-        done
-        
-        if [ "$CHANGED" = true ]; then
-          echo "data_changed=true" >> $GITHUB_OUTPUT
-          echo "✓ Data changes detected - will create release"
-        else
-          echo "data_changed=false" >> $GITHUB_OUTPUT
-          echo "⚠ No data changes detected"
-        fi
-
-    - name: Create release with data files
-      if: steps.data_changes.outputs.data_changed == 'true'
-      run: |
-        # Create release directory
-        mkdir -p release-data
-
-        # Copy ALL JSON files from data directory to release
-        cp uaforge/data/*.json release-data/
-
-        # Create compressed archive
-        cd release-data
-        tar -czf browser-data.tar.gz *.json
-        cd ..
-
-        # Generate release tag with timestamp
-        RELEASE_TAG="data-$(date +'%Y%m%d-%H%M%S')"
-        echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
-
-        # Create release notes
-        cat > release-notes.md << EOF
-        # Browser Data Update
-
-        This release contains all browser and device data files:
-        - Browser version data (Chrome, Chromium, Edge, Opera)
-        - Device models database
-        - Market share data
-        - OS distribution templates
-
-        **Usage:**
-        These files are automatically downloaded when installing UAForge via pip.
-
-        **Manual download:**
-        \`\`\`bash
-        wget https://github.com/sarperavci/UAForge/releases/download/$RELEASE_TAG/browser-data.tar.gz
-        tar -xzf browser-data.tar.gz
-        # Extract to uaforge/data/ directory
-        \`\`\`
-
-        **Contents:**
-        - All JSON data files needed for UAForge to function
-        - Complete browser version databases
-        - Device models and market share information
-        EOF
-
-    - name: Create GitHub Release
-      if: steps.data_changes.outputs.data_changed == 'true'
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ env.RELEASE_TAG }}
-        name: Browser Data - ${{ env.RELEASE_TAG }}
-        body_path: release-notes.md
-        files: release-data/browser-data.tar.gz
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+      - name: Tag release
+        run: |
+          git tag -a "v${{ steps.bump.outputs.version }}" -m "v${{ steps.bump.outputs.version }}"
+          git push origin "v${{ steps.bump.outputs.version }}"
