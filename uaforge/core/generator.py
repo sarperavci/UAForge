@@ -218,14 +218,22 @@ class UserAgentGenerator:
             "platform_version": pv,
         }
 
-    def _resolve_hardware(self, device_type: DeviceType, family: BrowserFamily, rand=None) -> HardwareInfo:
+    def _resolve_hardware(
+        self,
+        device_type: DeviceType,
+        family: BrowserFamily,
+        rand=None,
+        android_api: int = None
+    ) -> HardwareInfo:
         """
         Resolve hardware information based on device type and browser family.
+        When android_api is provided, only selects devices compatible with that Android version.
 
         Args:
             device_type: Device type
             family: Browser family
             rand: Optional random instance to use
+            android_api: Android API level for compatibility filtering
 
         Returns:
             HardwareInfo object
@@ -238,15 +246,52 @@ class UserAgentGenerator:
 
         if family == BrowserFamily.SAFARI:
             return HardwareInfo(device_type=DeviceType.MOBILE, model="iPhone", brand_header_value='"iPhone";v="16"')
-        elif family == BrowserFamily.CHROME and rand.random() < 0.3:
-            model_list = self._device_model_cache.get("google_pixel", [])
-        else:
-            cats = ["samsung", "oppo_realme_generic", "xiaomi_ecosystem", "google_pixel"]
-            cat = rand.choice(cats)
-            model_list = self._device_model_cache.get(cat, [])
 
+        # Determine brand category with Chrome Pixel bias
+        if family == BrowserFamily.CHROME and rand.random() < 0.3:
+            brand = "google_pixel"
+        else:
+            # Weighted brand selection based on market share
+            brand_weights = [
+                ("samsung", 0.45),
+                ("xiaomi_ecosystem", 0.30),
+                ("oppo_realme_generic", 0.15),
+                ("google_pixel", 0.10)
+            ]
+            r = rand.random()
+            cumulative = 0
+            brand = "samsung"  # Default
+            for b, w in brand_weights:
+                cumulative += w
+                if r <= cumulative:
+                    brand = b
+                    break
+
+        # If we have Android API info, use compatible device selection
+        if android_api is not None:
+            device_spec = self.loader.sample_compatible_device(brand, android_api, rand)
+            if device_spec:
+                return HardwareInfo(
+                    device_type=DeviceType.MOBILE,
+                    model=device_spec.model_code,
+                    cpu_arch="arm64"
+                )
+
+            # Fallback: try other brands if no compatible devices in chosen brand
+            for fallback_brand in ["samsung", "google_pixel", "xiaomi_ecosystem", "oppo_realme_generic"]:
+                if fallback_brand != brand:
+                    device_spec = self.loader.sample_compatible_device(fallback_brand, android_api, rand)
+                    if device_spec:
+                        return HardwareInfo(
+                            device_type=DeviceType.MOBILE,
+                            model=device_spec.model_code,
+                            cpu_arch="arm64"
+                        )
+
+        # Legacy fallback: use old device_models.json without API filtering
+        model_list = self._device_model_cache.get(brand, [])
         if not model_list:
-             return HardwareInfo(device_type=DeviceType.MOBILE, model="Generic Android", cpu_arch="arm64")
+            return HardwareInfo(device_type=DeviceType.MOBILE, model="Generic Android", cpu_arch="arm64")
 
         selected_model = rand.choice(model_list)
 
@@ -380,8 +425,33 @@ class UserAgentGenerator:
             loader=self.loader
         )
 
+        # Extract Android API level from OS data for compatible device selection
+        android_api = None
+        if os_data['type'] == OSType.ANDROID:
+            # Extract Android version from platform_version or ua_token
+            pv = os_data.get('platform_version', '')
+            if pv:
+                try:
+                    # platform_version is like "14.0.0" -> extract major as API level proxy
+                    android_version = int(pv.split('.')[0])
+                    # Map Android version to API level (Android 11 = API 30, etc.)
+                    # Android version + 19 = API level (for Android 11+)
+                    if android_version >= 11:
+                        android_api = android_version + 19  # Android 11 = 30, 12 = 31, etc.
+                    elif android_version == 10:
+                        android_api = 29
+                    elif android_version == 9:
+                        android_api = 28
+                except (ValueError, IndexError):
+                    android_api = None
+
         # Hardware
-        hw_info = self._resolve_hardware(candidate.device_type, candidate.family, rand=session_rand)
+        hw_info = self._resolve_hardware(
+            candidate.device_type,
+            candidate.family,
+            rand=session_rand,
+            android_api=android_api
+        )
 
         # Construct UA String
         os_token = os_data['ua_token']
