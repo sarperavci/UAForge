@@ -7,7 +7,7 @@ name = "uaforger"
 version = "0.1.6"
 description = "Statistically-weighted User-Agent + Sec-CH-UA Client-Hint generator backed by real-world market-share data."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.7"
 authors = [{ name = "Sarper AVCI", email = "sarperavci20@gmail.com" }]
 license = { text = "MIT" }
 keywords = ["user-agent", "client-hints", "fingerprint", "browser", "scraping", "automation"]
@@ -18,6 +18,8 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
