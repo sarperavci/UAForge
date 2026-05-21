@@ -23,13 +23,37 @@ jobs:
           python -m pip install --upgrade pip
           pip install --no-cache-dir build twine aiohttp beautifulsoup4
 
-      - name: Regenerate JSON data
+      - name: Seed static JSONs from previous release
         run: |
           mkdir -p uaforge/data
+          URL="https://github.com/sarperavci/UAForge/releases/latest/download/browser-data.tar.gz"
+          if wget -q "$URL" -O /tmp/browser-data.tar.gz; then
+            tar -xzf /tmp/browser-data.tar.gz -C uaforge/data/
+            echo "seeded from previous release"
+          else
+            echo "no previous release tarball found - scripts will start empty"
+          fi
+          ls -la uaforge/data/
+
+      - name: Regenerate dynamic JSON data
+        run: |
           python scripts/update_browser_versions.py
           python scripts/parse_caniuse.py
           python scripts/update_readme.py
           ls -la uaforge/data/
+
+      - name: Publish updated bundle as GitHub Release
+        run: |
+          cd uaforge/data
+          tar -czf /tmp/browser-data.tar.gz *.json
+          cd ../..
+          TAG="data-$(date +'%Y%m%d-%H%M%S')"
+          echo "TAG=$TAG" >> $GITHUB_ENV
+          gh release create "$TAG" --title "Browser data $TAG" \
+            --notes "Auto-regenerated bundle." \
+            /tmp/browser-data.tar.gz
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Bump patch version
         id: bump
