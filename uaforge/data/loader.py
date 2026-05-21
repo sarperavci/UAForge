@@ -12,6 +12,20 @@ import sys
 
 
 @dataclass
+class DeviceSpec:
+    """
+    Android device specification with Android version compatibility.
+    """
+    model_code: str
+    brand: str
+    name: str
+    min_android_api: int
+    max_android_api: int
+    popularity: float
+    year: int
+
+
+@dataclass
 class BrowserCandidate:
     """
     An internal representation of a specific browser version and its weight.
@@ -27,12 +41,12 @@ class DataLoader:
     _instance = None
     _loaded = False
 
-    def __new__(cls):
+    def __new__(cls) -> "DataLoader":
         if cls._instance is None:
             cls._instance = super(DataLoader, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         if not self._loaded:
             self.base_path = Path(__file__).parent
 
@@ -44,6 +58,12 @@ class DataLoader:
             self.edge_versions_raw: Dict[str, Any] = {}
             self.opera_versions_raw: Dict[str, Any] = {}
             self.chromium_versions_raw: Dict[str, Any] = {}
+            self.android_device_specs_raw: Dict[str, Any] = {}
+
+            # Processed device specs by brand
+            self._device_specs: Dict[str, List[DeviceSpec]] = {}
+            # Precomputed compatible devices by API level per brand
+            self._compatible_devices_cache: Dict[str, Dict[int, List[DeviceSpec]]] = {}
 
             self.candidates: List[BrowserCandidate] = []
             self.weights: List[float] = []
@@ -66,7 +86,7 @@ class DataLoader:
                         self._os_alias_samplers[scope][key] = weights  # store raw weights
             self._loaded = True
 
-    def _ensure_data_files(self):
+    def _ensure_data_files(self) -> None:
         """
         Fallback to download missing data files.
         Normally files are downloaded during pip install via setup.py.
@@ -89,7 +109,7 @@ class DataLoader:
         if not sys.stdout.isatty():
             return  # Skip in non-interactive environments (CI/CD)
 
-        print(f"\n⚠️  Missing data files: {', '.join(missing)}")
+        print(f"\nMissing data files: {', '.join(missing)}")
         print("Downloading from GitHub releases...", end=" ", flush=True)
 
         try:
@@ -129,9 +149,9 @@ class DataLoader:
         except Exception:
             pass  # Silently fail - library will work with limited data
 
-        print("\nℹ️  Using limited browser version data.")
+        print("\nUsing limited browser version data.")
 
-    def _load_data(self):
+    def _load_data(self) -> None:
         """Loads JSON files from disk."""
         try:
             with open(self.base_path / "market_share.json", "r", encoding="utf-8") as f:
@@ -166,12 +186,52 @@ class DataLoader:
             except FileNotFoundError:
                 self.chromium_versions_raw = {}
 
+            # Load Android device specifications
+            try:
+                with open(self.base_path / "android_device_specs.json", "r", encoding="utf-8") as f:
+                    self.android_device_specs_raw = json.load(f)
+                self._process_device_specs()
+            except FileNotFoundError:
+                self.android_device_specs_raw = {}
+                self._device_specs = {}
+
         except FileNotFoundError as e:
             raise DataLoadError(f"Critical data file missing: {e.filename}")
         except json.JSONDecodeError as e:
             raise DataLoadError(f"Corrupt JSON data: {e}")
 
-    def _process_market_share(self):
+    def _process_device_specs(self) -> None:
+        """
+        Process android_device_specs.json into DeviceSpec objects and build compatibility cache.
+        """
+        devices_data = self.android_device_specs_raw.get("devices", {})
+
+        for brand, device_list in devices_data.items():
+            specs = []
+            for d in device_list:
+                spec = DeviceSpec(
+                    model_code=d["model_code"],
+                    brand=d["brand"],
+                    name=d["name"],
+                    min_android_api=d["min_android_api"],
+                    max_android_api=d["max_android_api"],
+                    popularity=d["popularity"],
+                    year=d["year"]
+                )
+                specs.append(spec)
+            self._device_specs[brand] = specs
+
+        # Build compatibility cache for fast lookup
+        # For each brand, create a mapping: api_level -> list of compatible devices
+        for brand, specs in self._device_specs.items():
+            self._compatible_devices_cache[brand] = {}
+            # API levels 21-35 cover Android 5.0 to Android 15
+            for api in range(21, 36):
+                compatible = [s for s in specs if s.min_android_api <= api <= s.max_android_api]
+                if compatible:
+                    self._compatible_devices_cache[brand][api] = compatible
+
+    def _process_market_share(self) -> None:
         """
         Flattens the nested market_share.json into a single list of weighted candidates.
         """
@@ -228,6 +288,70 @@ class DataLoader:
     def get_device_models(self, category_key: str) -> List[str]:
         """Returns list of device models (e.g. for 'samsung' or 'google_pixel')"""
         return self.device_models_raw.get(category_key, [])
+
+    def get_compatible_devices(self, brand: str, android_api: int) -> List[DeviceSpec]:
+        """
+        Get devices compatible with a specific Android API level.
+
+        Args:
+            brand: Brand category key (e.g., "samsung", "google_pixel")
+            android_api: Android API level (e.g., 33 for Android 13)
+
+        Returns:
+            List of DeviceSpec objects that support the given Android version
+        """
+        return self._compatible_devices_cache.get(brand, {}).get(android_api, [])
+
+    def get_all_device_specs(self, brand: str) -> List[DeviceSpec]:
+        """
+        Get all device specs for a brand.
+
+        Args:
+            brand: Brand category key
+
+        Returns:
+            List of all DeviceSpec objects for the brand
+        """
+        return self._device_specs.get(brand, [])
+
+    def sample_compatible_device(
+        self,
+        brand: str,
+        android_api: int,
+        rand: random.Random = None
+    ) -> Optional[DeviceSpec]:
+        """
+        Sample a device compatible with the given Android API level,
+        weighted by popularity.
+
+        Args:
+            brand: Brand category key
+            android_api: Android API level
+            rand: Random instance to use
+
+        Returns:
+            A DeviceSpec or None if no compatible devices
+        """
+        if rand is None:
+            rand = random.Random()
+
+        compatible = self.get_compatible_devices(brand, android_api)
+        if not compatible:
+            return None
+
+        # Weighted random selection based on popularity
+        total_weight = sum(d.popularity for d in compatible)
+        if total_weight <= 0:
+            return rand.choice(compatible)
+
+        r = rand.random() * total_weight
+        cumulative = 0
+        for device in compatible:
+            cumulative += device.popularity
+            if r <= cumulative:
+                return device
+
+        return compatible[-1]  # Fallback
 
     def get_os_choices_and_weights(self, family_key: str, scope: str):
         """Return (choices, weights) for a given family_key and scope ('mobile_weights'|'desktop_weights')."""

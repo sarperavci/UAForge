@@ -10,6 +10,18 @@ from pathlib import Path
 BASE_PATH = Path(__file__).parent.parent / "uaforge" / "data"
 
 
+def version_sort_key(version: str) -> tuple:
+    """
+    Convert version string to tuple for proper sorting.
+    Example: "145.0.3800.70" -> (145, 0, 3800, 70)
+    """
+    try:
+        return tuple(int(x) for x in version.split('.'))
+    except (ValueError, AttributeError):
+        # If parsing fails, return a tuple that sorts to the end
+        return (0, 0, 0, 0)
+
+
 def load_existing_data(filename: str) -> Dict:
     """Load existing version data."""
     file_path = BASE_PATH / filename
@@ -87,6 +99,7 @@ def update_chromium_versions():
     for major in existing["by_major_version"]:
         existing["by_major_version"][major] = sorted(
             list(set(existing["by_major_version"][major])),
+            key=version_sort_key,
             reverse=True
         )
 
@@ -134,7 +147,7 @@ def update_chrome_versions():
                 print(f"  {platform}: Error - {e}")
 
         # Update all_versions and by_major_version
-        all_versions_list = sorted(list(os_versions), reverse=True)
+        all_versions_list = sorted(list(os_versions), key=version_sort_key, reverse=True)
         existing[os_name]["all_versions"] = all_versions_list[:100]
 
         # Rebuild by_major_version
@@ -247,7 +260,7 @@ def update_opera_versions():
                 new_versions.add(version)
 
         # Get last 10 versions only
-        new_versions_list = sorted(list(new_versions), reverse=True)[:10]
+        new_versions_list = sorted(list(new_versions), key=version_sort_key, reverse=True)[:10]
 
         # Add to existing versions
         all_existing = set(existing.get("windows", {}).get("all_versions", []))
@@ -259,7 +272,7 @@ def update_opera_versions():
                 added += 1
 
         # Update all platforms
-        all_versions_list = sorted(list(all_existing), reverse=True)
+        all_versions_list = sorted(list(all_existing), key=version_sort_key, reverse=True)
 
         # Rebuild by_major_version
         by_major = {}
