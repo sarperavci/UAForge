@@ -1,5 +1,5 @@
 import random
-from typing import Optional, Dict, Union
+from typing import Dict, FrozenSet, Iterable, List, Optional, Tuple, Union
 
 from ..data.loader import DataLoader, BrowserCandidate
 from ..models.enums import BrowserFamily, DeviceType, OSType, EngineType
@@ -7,6 +7,19 @@ from ..models.objects import UserAgentData, BrowserInfo, OSInfo, HardwareInfo
 from .versioning import VersionExpander
 from .client_hints import ClientHintsGenerator
 from .alias_sampler import AliasSampler
+
+
+def _coerce_set(value, enum_cls) -> Optional[FrozenSet]:
+    """Accept None / single enum / single str / iterable of either; return
+    a frozenset of enum values, or None to mean 'no filter'."""
+    if value is None:
+        return None
+    if isinstance(value, (str, enum_cls)):
+        value = (value,)
+    out = set()
+    for item in value:
+        out.add(enum_cls(item) if not isinstance(item, enum_cls) else item)
+    return frozenset(out)
 
 
 class UserAgentGenerator:
@@ -273,26 +286,74 @@ class UserAgentGenerator:
             return major + 16
         return 0
 
-    def generate(self, session: Union[str, int, None] = None, realistic: bool = True, weighted: bool = True, min_chromium_version: int = 0) -> UserAgentData:
+    def _filtered_sampler(
+        self,
+        families: Optional[FrozenSet],
+        device_types: Optional[FrozenSet],
+    ) -> Tuple[List[int], Optional[AliasSampler]]:
+        """Return (indices into loader.candidates, weighted sampler over them).
+        sampler is None when no filter is active (caller uses the global one)."""
+        if families is None and device_types is None:
+            return list(range(len(self.loader.candidates))), None
+        idxs: List[int] = []
+        weights: List[float] = []
+        for i, c in enumerate(self.loader.candidates):
+            if families is not None and c.family not in families:
+                continue
+            if device_types is not None and c.device_type not in device_types:
+                continue
+            idxs.append(i)
+            weights.append(self.loader.weights[i])
+        if not idxs:
+            raise ValueError(
+                "no candidates match filter (families=%r, device_types=%r)"
+                % (families, device_types)
+            )
+        return idxs, AliasSampler(weights, self.rand)
+
+    def generate(
+        self,
+        session: Union[str, int, None] = None,
+        realistic: bool = True,
+        weighted: bool = True,
+        min_chromium_version: int = 0,
+        families: Union[BrowserFamily, str, Iterable, None] = None,
+        device_types: Union[DeviceType, str, Iterable, None] = None,
+    ) -> UserAgentData:
         if session is not None:
             session_seed = self._session_to_seed(session)
             session_rand = random.Random(session_seed)
         else:
             session_rand = self.rand
 
-        while True:
-            if weighted:
+        family_set = _coerce_set(families, BrowserFamily)
+        device_set = _coerce_set(device_types, DeviceType)
+        filtered_idxs, filtered_sampler = self._filtered_sampler(family_set, device_set)
+
+        max_tries = 200
+        candidate = None
+        for _attempt in range(max_tries):
+            if weighted and filtered_sampler is not None:
+                idx = filtered_idxs[filtered_sampler.sample(rand=session_rand)]
+            elif weighted:
                 idx = self.candidate_sampler.sample(rand=session_rand)
+            elif filtered_sampler is not None:
+                idx = filtered_idxs[session_rand.randrange(len(filtered_idxs))]
             else:
                 idx = session_rand.randrange(len(self.loader.candidates))
             candidate = self.loader.candidates[idx]
 
             if min_chromium_version <= 0:
                 break
-
-            chromium_ver = self._candidate_chromium_version(candidate)
-            if chromium_ver >= min_chromium_version:
+            if self._candidate_chromium_version(candidate) >= min_chromium_version:
                 break
+        if candidate is None or (min_chromium_version > 0 and
+                                  self._candidate_chromium_version(candidate)
+                                  < min_chromium_version):
+            raise ValueError(
+                "no candidate matched (families=%r, device_types=%r, "
+                "min_chromium_version=%d)" % (family_set, device_set, min_chromium_version)
+            )
 
         # OS & Platform - resolve first so we can use it for version generation
         os_data = self._resolve_os(candidate, rand=session_rand)
