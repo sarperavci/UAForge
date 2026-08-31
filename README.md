@@ -152,7 +152,7 @@ The table below shows the aggregated browser market share from the current datas
 | IE | 0.24% |
 | Opera | 0.12% |
 
-*Last updated: 21-08-2026*
+*Last updated: 31-08-2026*
 
 ## License
 
