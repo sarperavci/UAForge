@@ -139,20 +139,20 @@ The table below shows the aggregated browser market share from the current datas
 
 | Browser | Market Share |
 |---------|-------------|
-| Chrome for Android | 59.31% |
-| Chrome (Desktop) | 17.98% |
-| iOS Safari | 11.69% |
-| Edge | 4.27% |
-| Firefox | 1.84% |
-| Safari (Desktop) | 1.68% |
-| Samsung Internet | 1.06% |
-| Opera Mobile | 0.88% |
-| UC Browser | 0.61% |
-| Firefox for Android | 0.32% |
-| IE | 0.24% |
-| Opera | 0.12% |
+| Chrome for Android | 57.74% |
+| Chrome (Desktop) | 20.37% |
+| iOS Safari | 10.82% |
+| Edge | 4.09% |
+| Firefox | 1.86% |
+| Safari (Desktop) | 1.65% |
+| Samsung Internet | 0.93% |
+| Opera Mobile | 0.83% |
+| Opera | 0.64% |
+| UC Browser | 0.55% |
+| Firefox for Android | 0.33% |
+| IE | 0.21% |
 
-*Last updated: 01-09-2026*
+*Last updated: 11-09-2026*
 
 ## License
 
